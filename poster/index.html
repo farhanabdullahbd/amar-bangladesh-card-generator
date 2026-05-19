@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>আমার বাংলাদেশ — ফটো কার্ড জেনারেটর</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tiro+Bangla:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>আমার বাংলাদেশ</h1>
+<p class="subtitle">নিউজ লিংক দিন — ফটো কার্ড তৈরি হবে</p>
+
+<!-- INPUT PANEL -->
+<div class="input-panel">
+  <div class="input-group">
+    <label>নিউজের লিংক দিন</label>
+    <input type="url" id="newsUrl" placeholder="https://..." />
+  </div>
+  <div class="input-group">
+    <label>ক্যাটাগরি (যেমন: রাজনৈতিক আলাপ, জাতীয়, খেলাধুলা)</label>
+    <input type="text" id="category" placeholder="রাজনৈতিক আলাপ" value="জাতীয়" />
+  </div>
+  <div class="input-group">
+    <label>সূত্র (যেমন: আমার দেশ, প্রথম আলো)</label>
+    <input type="text" id="source" placeholder="সূত্র: আমার বাংলাদেশ" value="আমার বাংলাদেশ" />
+  </div>
+  <button class="btn-generate" id="btnGenerate" onclick="generateContent()">
+    🔍 নিউজ পড়ুন ও কার্ড বানান
+  </button>
+  <div class="status-msg" id="statusMsg"></div>
+</div>
+
+<!-- EDIT PANEL -->
+<div class="edit-panel" id="editPanel">
+  <h2>✏️ চাইলে এডিট করুন, তারপর কার্ড রেন্ডার করুন</h2>
+
+  <div class="field-row">
+    <label>হেডলাইন</label>
+    <textarea id="editHeadline" rows="3"></textarea>
+  </div>
+  <div class="field-row">
+    <label>সংক্ষিপ্ত বিবরণ</label>
+    <textarea id="editBody" rows="4"></textarea>
+  </div>
+  <div class="field-row">
+    <label>তারিখ</label>
+    <input type="text" id="editDate" />
+  </div>
+  <div class="field-row">
+    <label>সাবজেক্টের ছবি আপলোড করুন</label>
+    <input type="file" accept="image/*" id="photoInput" onchange="handlePhotoUpload(event)" style="display:none;" />
+    <button type="button" onclick="document.getElementById('photoInput').click()" style="width:100%; padding:16px; background:#333; color:#fff; border:2px dashed #555; border-radius:10px; font-family:'Tiro Bangla',serif; font-size:15px; cursor:pointer;">📷 ছবি বেছে নিতে ক্লিক করুন</button>
+    <img id="photoPreview" class="photo-preview" />
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-refresh" onclick="regenerateContent()">🔄 AI দিয়ে নতুন করে লিখুন</button>
+    <button class="btn-render" onclick="renderCard()">🖼️ কার্ড রেন্ডার করুন</button>
+  </div>
+</div>
+
+<!-- CARD PREVIEW -->
+<div class="card-wrap" id="cardWrap">
+  <div class="card-outer">
+    <canvas id="photoCard" width="1279" height="1600"></canvas>
+  </div>
+  <button class="btn-download" onclick="downloadCard()">⬇️ JPG ডাউনলোড করুন</button>
+</div>
+
+<!-- JavaScript ফাইলসমূহ -->
+<script src="logos.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
