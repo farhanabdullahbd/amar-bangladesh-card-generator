@@ -15,7 +15,7 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NewsStore"] }],
   // প্রতি ৫ মিনিটে: বাকি লিংক লেখা, আর পোস্টের সময় হলে অনুমোদিত কার্ড পোস্ট
   "triggers": { "crons": ["*/5 * * * *"] },
-  "vars": { "DEEPSEEK_MODEL": "deepseek-flash" },
+  "vars": { "DEEPSEEK_MODEL": "deepseek-flash", "FB_PAGE_ID": "" },
   // ড্যাশবোর্ডে হাতে বসানো সাধারণ (Text) ঘর ডিপ্লয়ের সময় মুছবে না — আগে মুছে যেত (৮ অক্টোবর ২০২৬)
   "keep_vars": true,
   "observability": { "enabled": true }
