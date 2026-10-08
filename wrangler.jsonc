@@ -15,6 +15,6 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NewsStore"] }],
   // প্রতি ৫ মিনিটে: বাকি লিংক লেখা, আর পোস্টের সময় হলে অনুমোদিত কার্ড পোস্ট
   "triggers": { "crons": ["*/5 * * * *"] },
-  "vars": { "DEEPSEEK_MODEL": "deepseek-chat" },
+  "vars": { "DEEPSEEK_MODEL": "deepseek-flash" },
   "observability": { "enabled": true }
 }

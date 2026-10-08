@@ -26,7 +26,8 @@ export async function writeCard(article, url, env) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
-      model: env.DEEPSEEK_MODEL || 'deepseek-chat',
+      model: env.DEEPSEEK_MODEL || 'deepseek-flash',
+      reasoning_effort: env.DEEPSEEK_EFFORT || 'low',   // সারাংশে বেশি ভাবনার দরকার নেই — কম খরচ, তাড়াতাড়ি
       temperature: 0.4,
       response_format: { type: 'json_object' },
       messages: [
