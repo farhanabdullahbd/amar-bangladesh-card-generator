@@ -8,8 +8,8 @@ const T = Date.UTC(2026, 9, 8, 8, 10);
 
 test('বাংলাদেশের সময় আর কার্ডের তারিখ', () => {
   assert.deepEqual(bdNow(T), { date: '2026-10-08', minutes: 14 * 60 + 10 });
-  assert.equal(bnDateLabel(T), '8 অক্টোবর 26');
-  assert.equal(bnDateLabel(Date.UTC(2026, 9, 8, 19, 0)), '9 অক্টোবর 26');   // রাত ১টা — পরের দিন
+  assert.equal(bnDateLabel(T), '০৮ অক্টোবর ২০২৬');
+  assert.equal(bnDateLabel(Date.UTC(2026, 9, 8, 19, 0)), '০৯ অক্টোবর ২০২৬');   // রাত ১টা — পরের দিন
 });
 
 test('শুরুর সময়সূচি — সকাল ৮টা থেকে রাত ১০টা, দিনে ১৫টা', () => {

@@ -10,10 +10,11 @@ export function bdNow(ms = Date.now()) {
   return { date: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
 }
 
-/* কার্ডের তারিখ — আগের নকশার মতোই: "8 অক্টোবর 26" */
+/* কার্ডের তারিখ — মালিকের রেফারেন্স কার্ডের মতো: "০৪ জুন ২০২৫" (বাংলা অঙ্ক, দুই অঙ্কের দিন, পুরো সাল) */
+const BN = s => String(s).replace(/\d/g, c => '০১২৩৪৫৬৭৮৯'[c]);
 export function bnDateLabel(ms = Date.now()) {
   const d = new Date(ms + BD_OFFSET_MS);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(-2)}`;
+  return `${BN(String(d.getUTCDate()).padStart(2, '0'))} ${MONTHS[d.getUTCMonth()]} ${BN(d.getUTCFullYear())}`;
 }
 
 /* পোস্টের সময় — শুরুতে সকাল ৮টা থেকে রাত ১০টা, প্রতি ঘণ্টায় একটা (দিনে ১৫টা); সাইটের "সময়সূচি" থেকে বদলানো যায় */
