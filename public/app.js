@@ -156,12 +156,14 @@
     try { posts = JSON.parse(d.fb_posts || '{}'); } catch { /* পুরনো পোস্টে নেই */ }
     const list = Object.values(posts).length ? Object.values(posts) : d.fb_post_id ? [{ post: d.fb_post_id, name: 'ফেসবুকে দেখুন' }] : [];
     const links = list.map(p => `<a class="btn light small" href="https://www.facebook.com/${esc(p.post)}" target="_blank" rel="noopener">${esc(p.name)} ↗</a>`).join('');
-    return `<div class="r">${pic(newsImg(d))}<div class="t"><span class="when">${ago(d.posted_at)}</span><div class="h">${esc(d.headline)}</div></div><div class="acts links">${links}</div></div>`;
+    const note = d.error ? `<div class="err">${esc(d.error)}</div>` : '';
+    const again = d.error ? `<button class="btn primary small" data-act="repost" data-id="${d.id}">বাকি পেজে আবার চেষ্টা</button>` : '';
+    return `<div class="r">${pic(newsImg(d))}<div class="t"><span class="when">${ago(d.posted_at)}</span><div class="h">${esc(d.headline)}</div>${note}</div><div class="acts links">${links}${again}</div></div>`;
   }
 
   /* তালিকার বোতাম */
-  const ASK = { post: 'এই কার্ডটা এখনই ফেসবুক পেজে পোস্ট করবেন?', reject: 'এই নিউজটা বাদ দেবেন?', unapprove: 'অনুমোদন তুলে নিয়ে আবার ধাপ ২-এ ফিরিয়ে আনবেন? (লেখা বা ছবি ঠিক করার জন্য)' };
-  const DONE_MSG = { post: 'পোস্ট হয়ে গেছে ✓', reject: 'বাদ দেওয়া হলো', unapprove: 'ধাপ ২-এ ফিরিয়ে আনা হলো', retry: 'আবার চেষ্টা হচ্ছে' };
+  const ASK = { repost: 'যে পেজে যায়নি, শুধু সেখানে আবার পোস্ট করবেন?', post: 'এই কার্ডটা এখনই ফেসবুক পেজে পোস্ট করবেন?', reject: 'এই নিউজটা বাদ দেবেন?', unapprove: 'অনুমোদন তুলে নিয়ে আবার ধাপ ২-এ ফিরিয়ে আনবেন? (লেখা বা ছবি ঠিক করার জন্য)' };
+  const DONE_MSG = { repost: 'চেষ্টা শেষ — নিচে দেখুন', post: 'পোস্ট হয়ে গেছে ✓', reject: 'বাদ দেওয়া হলো', unapprove: 'ধাপ ২-এ ফিরিয়ে আনা হলো', retry: 'আবার চেষ্টা হচ্ছে' };
   document.addEventListener('click', async e => {
     const b = e.target.closest('#home [data-act], #home [data-open]');
     if (!b) return;
@@ -169,8 +171,12 @@
     const { act, id } = b.dataset;
     if (ASK[act] && !confirm(ASK[act])) return;
     b.disabled = true;
-    if (act === 'post') b.textContent = 'পোস্ট হচ্ছে…';
-    try { await post(`/api/drafts/${id}/${act}`); toast(DONE_MSG[act]); await refresh(); }
+    if (act === 'post' || act === 'repost') b.textContent = 'পোস্ট হচ্ছে…';
+    try {
+      const r = await post(`/api/drafts/${id}/${act}`);
+      if (r?.note) alert(`পোস্ট হয়েছে, তবে ${r.note}`); else toast(DONE_MSG[act]);
+      await refresh();
+    }
     catch (err) { alert(err.message); b.disabled = false; await refresh().catch(() => {}); }
   });
 
@@ -342,9 +348,10 @@
       form.append('caption', f.caption);
       await call(`/api/drafts/${editing.id}/approve`, { method: 'POST', body: form });
       approved = true;
-      if (now) await post(`/api/drafts/${editing.id}/post`);
+      const r = now ? await post(`/api/drafts/${editing.id}/post`) : null;
       closeEditor();
-      toast(now ? 'পোস্ট হয়ে গেছে ✓' : 'অনুমোদন হয়েছে — ধাপ ৩-এ পোস্টের অপেক্ষায়');
+      if (r?.note) alert(`পোস্ট হয়েছে, তবে ${r.note}`);
+      else toast(now ? 'পোস্ট হয়ে গেছে ✓' : 'অনুমোদন হয়েছে — ধাপ ৩-এ পোস্টের অপেক্ষায়');
       await refresh();
     } catch (err) {
       /* অনুমোদন হয়ে গেছে কিন্তু পোস্ট হয়নি — কার্ডটা ধাপ ৩-এ আছে, সেখান থেকে আবার "এখনই পোস্ট" দেওয়া যায় */

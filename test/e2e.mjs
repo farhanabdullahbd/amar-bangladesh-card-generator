@@ -27,7 +27,8 @@ const logos = readFileSync(resolve(root, 'public/logos.js'), 'utf8');
 const PHOTO = Buffer.from(logos.match(/MAP_LOGO_B64 = "data:image\/png;base64,([^"]+)"/)[1], 'base64');
 const seen = { deepseek: [], fb: [] };
 let deepseekBroke = true;
-let failPage2Once = false;   // দুই পেজের একটায় একবার ব্যর্থ — আবার চেষ্টায় শুধু সেটায় যায় কি না   // দ্বিতীয় নিউজে প্রথমবার ব্যালান্স শেষ দেখাবে
+let failPage2Once = false;
+let blockPage2 = false, page2Calls = 0;   // ফেসবুক PAGE2 সাময়িক আটকে রাখলে (কোড 368)   // দুই পেজের একটায় একবার ব্যর্থ — আবার চেষ্টায় শুধু সেটায় যায় কি না   // দ্বিতীয় নিউজে প্রথমবার ব্যালান্স শেষ দেখাবে
 const ARTICLE = 'ঢাকায় আজ নতুন মেট্রো লাইনের উদ্বোধন হয়েছে। প্রধান উপদেষ্টা সকাল ১০টায় উদ্বোধন করেন। প্রতিদিন ৫০ হাজার যাত্রী চলাচল করবে।';
 const HEAD = '<meta property="og:title" content="মেট্রো উদ্বোধন"><meta property="og:site_name" content="নমুনা খবর"><meta property="og:image" content="/photo.png?a=1&amp;b=2">';
 /* প্রথম আলোর মতো বড় পাতা — <head>-এর পরে ২ MB */
@@ -64,6 +65,8 @@ const mock = createServer(async (req, res) => {
     const text = body.toString('latin1');
     const page = u.match(/\/graph\/v23\.0\/(\w+)\/photos/)?.[1];
     const tok = text.match(/name="access_token"\r\n\r\n(\w+)\r\n/)?.[1];
+    if (page === 'PAGE2') page2Calls++;
+    if (page === 'PAGE2' && blockPage2) return send(400, 'application/json', JSON.stringify({ error: { code: 368, message: 'You have been temporarily blocked from performing this action.' } }));
     if (page === 'PAGE2' && failPage2Once) { failPage2Once = false; return send(400, 'application/json', JSON.stringify({ error: { code: 1, message: 'সাময়িক সমস্যা' } })); }
     const cap = body.toString('utf8').match(/name="caption"\r\n\r\n([\s\S]*?)\r\n--/);
     seen.fb.push({ page, tok, caption: cap?.[1] || '', jpeg: text.includes('\xFF\xD8\xFF') });
@@ -248,6 +251,36 @@ try {
   await wait(1500);
   check('এখনই পোস্টের পরে cron আবার পোস্ট করে না', seen.fb.length === 6);
   check('পোস্ট না হওয়া কার্ড ছাড়া কিছু লাইনে নেই', !(await drafts()).some(d => ['approved', 'posting'].includes(d.status)));
+
+  /* ফেসবুক একটা পেজ সাময়িক আটকে রাখলে — বাকি পেজে যায়, আটকানো পেজে ৩ ঘণ্টা চেষ্টা নয়, পরে "বাকি পেজে আবার চেষ্টা" */
+  await pg.locator('#links').fill(`${M}/news/6\n${M}/news/7`);
+  await pg.locator('#addLinks').click();
+  await until(async () => (await drafts()).filter(d => /news\/[67]$/.test(d.url) && d.status === 'ready').length === 2, 40000);
+  await pg.reload();
+  await until(async () => await pg.locator('#home').isVisible(), 10000);
+  const approveNowFor = async id => {
+    await pg.locator(`#todo [data-open="${id}"]`).click();
+    await until(async () => await pg.locator('#editor').isVisible(), 10000);
+    await wait(1500);
+    await pg.locator('#approveNow').click();
+    await until(async () => (await drafts()).find(d => d.id === id)?.status === 'posted', 15000);
+  };
+  const id6 = (await drafts()).find(d => d.url.endsWith('/news/6')).id;
+  const id7 = (await drafts()).find(d => d.url.endsWith('/news/7')).id;
+  blockPage2 = true;
+  const before = seen.fb.length, calls0 = page2Calls;
+  await approveNowFor(id6);
+  const d6 = (await drafts()).find(d => d.id === id6);
+  check('একটা পেজ আটকে থাকলেও অন্য পেজে গেল, কারণ লেখা', d6?.status === 'posted' && /আটকে/.test(d6?.error || '') && seen.fb.length === before + 1 && seen.fb.at(-1).page === 'PAGE1', `${d6?.status} ${d6?.error}`);
+  await approveNowFor(id7);
+  check('আটকানো পেজে কিছুক্ষণ আর চেষ্টাই হয় না (বারবার চেষ্টায় আটক বাড়ে)', page2Calls === calls0 + 1 && seen.fb.length === before + 2, `PAGE2 ডাক ${page2Calls - calls0}`);
+  blockPage2 = false;
+  await pg.reload();
+  await until(async () => await pg.locator('#home').isVisible(), 10000);
+  await pg.locator('#doneBox summary').click();
+  await pg.locator(`#done [data-act="repost"][data-id="${id6}"]`).click();
+  const fixed = await until(async () => { const d = (await drafts()).find(x => x.id === id6); return d?.status === 'posted' && !d.error ? d : null; }, 15000);
+  check('"বাকি পেজে আবার চেষ্টা" — শুধু আটকানো পেজে গেল', !!fixed && Object.keys(JSON.parse(fixed.fb_posts)).length === 2 && seen.fb.at(-1).page === 'PAGE2' && seen.fb.length === before + 3, JSON.stringify(seen.fb.slice(before).map(f => f.page)));
 
   /* ফোনের মাপে — পাশে সরে না; ছবি রাখা হয় চোখে দেখার জন্য */
   await pg.setViewportSize({ width: 390, height: 840 });

@@ -156,10 +156,29 @@ export class NewsStore extends DurableObject {
     this.sql.exec("UPDATE drafts SET status = 'posting', claim_at = ? WHERE id = ?", now, d.id);
     return { ...d, jpeg: this.card(d.id) };
   }
-  markPosted(id, fbPostId, slotKey, now = Date.now()) {
-    this.sql.exec("UPDATE drafts SET status = 'posted', posted_at = ?, fb_post_id = ?, error = NULL WHERE id = ?", now, fbPostId, id);
+  /* note: কোনো পেজে না গেলে তার কারণ (পোস্ট হওয়া কার্ডেও দেখায়, সেখান থেকে "বাকি পেজে আবার চেষ্টা") */
+  markPosted(id, fbPostId, slotKey, now = Date.now(), note = null) {
+    this.sql.exec("UPDATE drafts SET status = 'posted', posted_at = COALESCE(posted_at, ?), fb_post_id = COALESCE(fb_post_id, ?), error = ? WHERE id = ?", now, fbPostId, note, id);
     if (slotKey) this._setKv('lastSlot', slotKey);
   }
+  /* কোনো পেজেই যায়নি শুধু ফেসবুকের সাময়িক আটকের জন্য — চেষ্টা গোনা নয়, লাইনেই থাকে */
+  releaseApproved(id, msg) {
+    this.sql.exec("UPDATE drafts SET status = 'approved', error = ? WHERE id = ?", msg, id);
+  }
+  /* পোস্ট হওয়া কার্ড — যে পেজে যায়নি, শুধু সেখানে আবার */
+  claimMissing(id, now = Date.now()) {
+    const d = this.sql.exec(`SELECT ${COLS} FROM drafts WHERE id = ? AND status = 'posted'`, id).toArray()[0];
+    if (!d) return null;
+    this.sql.exec("UPDATE drafts SET status = 'posting', claim_at = ? WHERE id = ?", now, id);
+    return { ...d, jpeg: this.card(id) };
+  }
+
+  /* ── ফেসবুক যে পেজ সাময়িক আটকে রেখেছে — {পেজের আইডি: কখন পর্যন্ত}; ততক্ষণ সেই পেজে চেষ্টা নয় ── */
+  blockedPages(now = Date.now()) {
+    return Object.fromEntries(Object.entries(this._kv('fbBlocked', {})).filter(([, t]) => t > now));
+  }
+  blockPage(pageId, until) { this._setKv('fbBlocked', { ...this.blockedPages(), [pageId]: until }); }
+  clearBlock(pageId) { const b = this.blockedPages(); if (b[pageId]) { delete b[pageId]; this._setKv('fbBlocked', b); } }
   markPostError(id, msg) {
     this.sql.exec(`UPDATE drafts SET attempts = attempts + 1, error = ?,
       status = CASE WHEN attempts + 1 >= 3 THEN 'post_failed' ELSE 'approved' END WHERE id = ?`, msg, id);

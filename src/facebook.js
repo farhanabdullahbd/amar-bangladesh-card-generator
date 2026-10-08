@@ -9,6 +9,10 @@ const userToken = env => String(env.FB_USER_TOKEN || '').trim();
 export const fbTokenSet = env => !!userToken(env);
 
 function fbError(e = {}, status) {
+  /* ফেসবুকের স্প্যাম-পাহারা (কোড 368) — পেজে কিছুক্ষণের জন্য পোস্ট আটকে রাখে; বারবার চেষ্টা করলে আরও দেরি হয় */
+  if (e.code === 368 || /temporarily blocked/i.test(e.message || '')) {
+    return Object.assign(new Error('ফেসবুক এই পেজে কিছুক্ষণের জন্য পোস্ট আটকে রেখেছে'), { blocked: true });
+  }
   if (e.code === 190) return new Error('ফেসবুকের টোকেন বাতিল বা মেয়াদ শেষ — নতুন টোকেন বসাতে হবে');
   if (e.code === 200 || e.code === 10) return new Error('এই পেজে পোস্ট করার অনুমতি নেই — টোকেনের অনুমতি দেখুন');
   return new Error(`ফেসবুক: ${e.message || status}`);

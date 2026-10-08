@@ -63,11 +63,17 @@ export async function processOne(env) {
   }
 }
 
-/* ── একটা কার্ড বাছা সব পেজে — যে পেজে আগেই গেছে সেখানে আবার নয়। কোনো পেজে না গেলে কারণসহ Error ── */
-async function publish(env, s, item, slotKey) {
+/* ── একটা কার্ড বাছা সব পেজে — যে পেজে আগেই গেছে সেখানে আবার নয়। কোনো পেজে না গেলে কারণসহ Error ──
+   ফেসবুক কোনো পেজ সাময়িক আটকে রাখলে (৮ অক্টোবর ২০২৬, Amar Bangladesh News-এ ঘটেছে) সেই পেজ ৩ ঘণ্টা বাদ — বারবার
+   চেষ্টায় আটক আরও লম্বা হয়, আর অন্য পেজের পোস্টও লাইনে আটকে থাকত। বাকি পেজে কার্ড যায়; যেখানে যায়নি তা কার্ডে
+   লেখা থাকে, মালিক পরে "বাকি পেজে আবার চেষ্টা" দিতে পারেন (force — বিরতি না মেনে)। */
+const BLOCK_MS = 3 * 3600 * 1000;
+async function publish(env, s, item, slotKey, { force = false } = {}) {
+  const now = Date.now();
   const pages = await s.fbPages();
+  const blocked = force ? {} : await s.blockedPages(now);
   const done = JSON.parse(item.fb_posts || '{}');
-  const errs = [];
+  const errs = [], skipped = [];
   if (!item.jpeg) errs.push('কার্ডের ছবি পাওয়া যায়নি');
   else {
     let all = [];
@@ -75,20 +81,31 @@ async function publish(env, s, item, slotKey) {
     if (!errs.length) {
       for (const p of pages) {
         if (done[p.id]) continue;
+        if (blocked[p.id]) { skipped.push(`${p.name}: ফেসবুক কিছুক্ষণের জন্য পোস্ট আটকে রেখেছে`); continue; }
         const page = all.find(x => x.id === p.id);
         if (!page) { errs.push(`${p.name}: এই পেজে পোস্ট করার অনুমতি নেই`); continue; }
-        try { done[p.id] = { post: await postPhoto(env, page, item.jpeg, cleanCaption(item.caption)), name: page.name }; }
-        catch (e) { errs.push(`${p.name}: ${e.message || e}`); }
+        try {
+          done[p.id] = { post: await postPhoto(env, page, item.jpeg, cleanCaption(item.caption)), name: page.name };
+          await s.clearBlock(p.id);
+        } catch (e) {
+          if (e.blocked) { await s.blockPage(p.id, now + BLOCK_MS); skipped.push(`${p.name}: ${e.message}`); }
+          else errs.push(`${p.name}: ${e.message || e}`);
+        }
       }
     }
   }
   await s.setPosts(item.id, done);
   if (errs.length) {
-    await s.markPostError(item.id, errs.join(' • '));
-    throw new Error(errs.join(' • '));
+    await s.markPostError(item.id, [...errs, ...skipped].join(' • '));
+    throw new Error([...errs, ...skipped].join(' • '));
   }
-  await s.markPosted(item.id, Object.values(done)[0]?.post || '', slotKey);
-  return done;
+  if (!Object.keys(done).length) {
+    await s.releaseApproved(item.id, skipped.join(' • '));
+    throw new Error(skipped.join(' • '));
+  }
+  const note = skipped.length ? `যায়নি — ${skipped.join(' • ')}` : null;
+  await s.markPosted(item.id, Object.values(done)[0]?.post || '', slotKey, now, note);
+  return { done, note };
 }
 const fbReady = async (env, s) => fbTokenSet(env) && (await s.fbPages()).length > 0;
 
@@ -101,7 +118,7 @@ export async function postIfDue(env, now = Date.now()) {
   if (!slot || slot === lastSlot) return { skipped: 'এখন পোস্টের সময় নয়' };
   const item = await s.claimForPost(null, now);
   if (!item) return { skipped: 'লাইনে কোনো অনুমোদিত কার্ড নেই' };
-  try { return { posted: item.id, pages: await publish(env, s, item, slot), slot }; }
+  try { return { posted: item.id, ...(await publish(env, s, item, slot)), slot }; }
   catch (e) { return { error: String(e.message || e) }; }
 }
 
@@ -111,7 +128,15 @@ export async function postNow(env, id) {
   if (!(await fbReady(env, s))) throw new Error('ফেসবুক যুক্ত নয় বা কোনো পেজ বাছা হয়নি — সেটিংস দেখুন');
   const item = await s.claimForPost(id, Date.now());
   if (!item) throw new Error('এটা এখন পোস্ট করা যায় না — পাতা রিফ্রেশ করে দেখুন');
-  return { posted: item.id, pages: await publish(env, s, item, null) };
+  return { posted: item.id, ...(await publish(env, s, item, null)) };
+}
+
+/* পোস্ট হওয়া কার্ড — যে পেজে যায়নি শুধু সেখানে, মালিকের চাপে (ফেসবুকের বিরতি না মেনে) */
+export async function postMissing(env, id) {
+  const s = store(env);
+  const item = await s.claimMissing(id, Date.now());
+  if (!item) throw new Error('এটা এখন পোস্ট করা যায় না — পাতা রিফ্রেশ করে দেখুন');
+  return { posted: item.id, ...(await publish(env, s, item, null, { force: true })) };
 }
 
 /* ── নিউজের ছবি নিজের ঠিকানা দিয়ে — পাতার canvas-এ অন্য সাইটের ছবি আঁকলে JPG বানানো যায় না ── */
@@ -195,6 +220,7 @@ async function api(req, env, ctx, path) {
         return json(await s.approve(id, await file.arrayBuffer(), form.get('caption') || '', Date.now()));
       }
       if (action === 'post' && method === 'POST') return json(await postNow(env, id));
+      if (action === 'repost' && method === 'POST') return json(await postMissing(env, id));
       if (action === 'unapprove' && method === 'POST') return json(await s.unapprove(id));
       if (action === 'reject' && method === 'POST') return json(await s.reject(id));
       if (action === 'retry' && method === 'POST') return json(await s.retry(id));
