@@ -195,6 +195,32 @@ try {
   check('"পোস্ট হয়ে গেছে"-তে দেখায়', (await pg.locator('#cDone').innerText()) === '১');
   check('একই লিংক আবার দিলে যোগ হয় না', (await pg.evaluate(u => fetch('/api/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: u }) }).then(r => r.json()), `${M}/news/1`)).skipped?.length === 1);
 
+  /* এখনই পোস্ট — কার্ডের পাতা থেকে (অনুমোদন + পোস্ট), আর ধাপ ৩ থেকে */
+  await pg.locator('#links').fill(`${M}/news/5`);
+  await pg.locator('#addLinks').click();
+  await until(async () => (await drafts()).find(d => d.url.endsWith('/news/5'))?.status === 'ready', 30000);
+  await pg.reload();
+  await until(async () => await pg.locator('#home').isVisible(), 10000);
+  const id2 = (await drafts()).find(d => d.url.endsWith('/news/2')).id;
+  await pg.locator(`#todo [data-open="${id2}"]`).click();
+  await until(async () => await pg.locator('#editor').isVisible(), 10000);
+  await wait(1500);
+  check('কার্ডের পাতায় "এখনই পোস্ট" বোতাম', await pg.locator('#approveNow').isVisible());
+  await pg.locator('#approveNow').click();
+  check('অনুমোদন দিয়ে সাথে সাথে পোস্ট হলো', !!(await until(async () => seen.fb.length === 2, 15000)) && !!(await until(async () => (await drafts()).find(d => d.id === id2)?.status === 'posted', 10000)));
+  const id5 = (await drafts()).find(d => d.url.endsWith('/news/5')).id;
+  await pg.locator(`#todo [data-open="${id5}"]`).click();
+  await until(async () => await pg.locator('#editor').isVisible(), 10000);
+  await wait(1500);
+  await pg.locator('#approve').click();
+  await until(async () => (await pg.locator(`#queue [data-act="post"][data-id="${id5}"]`).count()) === 1, 15000);
+  await pg.locator(`#queue [data-act="post"][data-id="${id5}"]`).click();
+  check('ধাপ ৩ থেকে "এখনই পোস্ট"', !!(await until(async () => seen.fb.length === 3, 15000)) && !!(await until(async () => (await drafts()).find(d => d.id === id5)?.status === 'posted', 10000)));
+  await fetch(`${A}/__scheduled?cron=*/5+*+*+*+*`);
+  await wait(1500);
+  check('এখনই পোস্টের পরে cron আবার পোস্ট করে না', seen.fb.length === 3);
+  check('পোস্ট না হওয়া কার্ড ছাড়া কিছু লাইনে নেই', !(await drafts()).some(d => ['approved', 'posting'].includes(d.status)));
+
   /* ফোনের মাপে — পাশে সরে না; ছবি রাখা হয় চোখে দেখার জন্য */
   await pg.setViewportSize({ width: 390, height: 840 });
   await pg.reload();

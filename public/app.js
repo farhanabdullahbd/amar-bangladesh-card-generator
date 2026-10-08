@@ -100,7 +100,7 @@
 
     /* ধাপ ৩ — পোস্টের অপেক্ষায় */
     const queue = by('approved').sort((a, b) => a.approved_at - b.approved_at);
-    const stuck = by('post_failed');
+    const stuck = [...by('posting'), ...by('post_failed')];
     $('cQueue').textContent = queue.length + stuck.length ? BN(queue.length + stuck.length) : '';
     $('queue').innerHTML = (queue.length || stuck.length)
       ? [...stuck.map(d => queueRow(d, null)), ...queue.map((d, i) => queueRow(d, state.upcoming[i]))].join('')
@@ -131,7 +131,10 @@
   function queueRow(d, slot) {
     const card = `/api/drafts/${d.id}/card.jpg`;
     let when, extra = '', acts;
-    if (d.status === 'post_failed') {
+    if (d.status === 'posting') {
+      when = '<span class="when wait">পোস্ট হচ্ছে…</span>';
+      acts = '';
+    } else if (d.status === 'post_failed') {
       when = '<span class="when bad">পোস্ট হয়নি</span>';
       extra = `<div class="err">${esc(d.error || '')}</div>`;
       acts = `<button class="btn primary small" data-act="retry" data-id="${d.id}">আবার চেষ্টা</button><button class="btn light small" data-act="reject" data-id="${d.id}">বাদ দিন</button>`;
@@ -139,7 +142,8 @@
       when = !state.health.fb ? '<span class="when wait">ফেসবুক যুক্ত হলে যাবে</span>'
         : `<span class="when">${slot ? slotLabel(slot) : 'সামনের কোনো সময়ে'}</span>`;
       if (d.error) extra = `<div class="err">আগের চেষ্টায় সমস্যা: ${esc(d.error)}</div>`;
-      acts = `<button class="btn light small" data-act="unapprove" data-id="${d.id}">ফিরিয়ে আনুন</button>`;
+      acts = (state.health.fb ? `<button class="btn primary small" data-act="post" data-id="${d.id}">এখনই পোস্ট</button>` : '')
+        + `<button class="btn light small" data-act="unapprove" data-id="${d.id}">ফিরিয়ে আনুন</button>`;
     }
     return `<div class="r">${pic(card)}<div class="t">${when}<div class="h">${esc(d.headline)}</div>${extra}</div><div class="acts">${acts}</div></div>`;
   }
@@ -150,8 +154,8 @@
   }
 
   /* তালিকার বোতাম */
-  const ASK = { reject: 'এই নিউজটা বাদ দেবেন?', unapprove: 'অনুমোদন তুলে নিয়ে আবার ধাপ ২-এ ফিরিয়ে আনবেন? (লেখা বা ছবি ঠিক করার জন্য)' };
-  const DONE_MSG = { reject: 'বাদ দেওয়া হলো', unapprove: 'ধাপ ২-এ ফিরিয়ে আনা হলো', retry: 'আবার চেষ্টা হচ্ছে' };
+  const ASK = { post: 'এই কার্ডটা এখনই ফেসবুক পেজে পোস্ট করবেন?', reject: 'এই নিউজটা বাদ দেবেন?', unapprove: 'অনুমোদন তুলে নিয়ে আবার ধাপ ২-এ ফিরিয়ে আনবেন? (লেখা বা ছবি ঠিক করার জন্য)' };
+  const DONE_MSG = { post: 'পোস্ট হয়ে গেছে ✓', reject: 'বাদ দেওয়া হলো', unapprove: 'ধাপ ২-এ ফিরিয়ে আনা হলো', retry: 'আবার চেষ্টা হচ্ছে' };
   document.addEventListener('click', async e => {
     const b = e.target.closest('#home [data-act], #home [data-open]');
     if (!b) return;
@@ -159,8 +163,9 @@
     const { act, id } = b.dataset;
     if (ASK[act] && !confirm(ASK[act])) return;
     b.disabled = true;
+    if (act === 'post') b.textContent = 'পোস্ট হচ্ছে…';
     try { await post(`/api/drafts/${id}/${act}`); toast(DONE_MSG[act]); await refresh(); }
-    catch (err) { alert(err.message); b.disabled = false; }
+    catch (err) { alert(err.message); b.disabled = false; await refresh().catch(() => {}); }
   });
 
   /* ── ধাপ ১: লিংক যোগ, তারপর একটা একটা করে লেখা ── */
@@ -248,6 +253,7 @@
     $('srcLink').href = d.url;
     say($('editMsg'), '');
     $('useNewsPhoto').hidden = !d.image_url;
+    $('approveNow').hidden = !state.health.fb;
     $('editor').hidden = false;
     $('editor').scrollTop = 0;
     document.body.style.overflow = 'hidden';
@@ -281,11 +287,13 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   };
 
-  $('approve').onclick = async () => {
+  async function approve(now) {
     const f = fields();
     if (!f.headline || !f.body) return say($('editMsg'), 'হেডলাইন আর বিস্তারিত লাগবে', 'err');
-    $('approve').disabled = true;
-    say($('editMsg'), 'অনুমোদন হচ্ছে…');
+    if (now && !confirm('অনুমোদন দিয়ে এখনই ফেসবুক পেজে পোস্ট করবেন?')) return;
+    $('approve').disabled = $('approveNow').disabled = true;
+    say($('editMsg'), now ? 'পোস্ট হচ্ছে…' : 'অনুমোদন হচ্ছে…');
+    let approved = false;
     try {
       await call(`/api/drafts/${editing.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
       await Card.drawCard($('canvas'), f, photo);
@@ -293,12 +301,20 @@
       form.append('card', await Card.cardJpeg($('canvas')), 'card.jpg');
       form.append('caption', f.caption);
       await call(`/api/drafts/${editing.id}/approve`, { method: 'POST', body: form });
+      approved = true;
+      if (now) await post(`/api/drafts/${editing.id}/post`);
       closeEditor();
-      toast('অনুমোদন হয়েছে — ধাপ ৩-এ পোস্টের অপেক্ষায়');
+      toast(now ? 'পোস্ট হয়ে গেছে ✓' : 'অনুমোদন হয়েছে — ধাপ ৩-এ পোস্টের অপেক্ষায়');
       await refresh();
-    } catch (err) { say($('editMsg'), err.message, 'err'); }
-    $('approve').disabled = false;
-  };
+    } catch (err) {
+      /* অনুমোদন হয়ে গেছে কিন্তু পোস্ট হয়নি — কার্ডটা ধাপ ৩-এ আছে, সেখান থেকে আবার "এখনই পোস্ট" দেওয়া যায় */
+      if (approved) { closeEditor(); alert(`অনুমোদন হয়েছে, কিন্তু পোস্ট হয়নি: ${err.message}\nকার্ডটা ধাপ ৩-এ আছে।`); await refresh().catch(() => {}); }
+      else say($('editMsg'), err.message, 'err');
+    }
+    $('approve').disabled = $('approveNow').disabled = false;
+  }
+  $('approve').onclick = () => approve(false);
+  $('approveNow').onclick = () => approve(true);
   $('rewrite').onclick = async () => {
     if (!confirm('AI দিয়ে আবার লেখাবেন? এখনকার লেখা বদলে যাবে।')) return;
     try { await post(`/api/drafts/${editing.id}/retry`); closeEditor(); toast('আবার লেখা হচ্ছে'); await refresh(); }

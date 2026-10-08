@@ -2,7 +2,7 @@
    একটাই কপি (নাম "main"), তাই একসাথে দুই কাজ এলেও একটার পর একটা চলে — কোনো লেখা হারায় না।
 
    একটা নিউজের ধাপ (status):
-     new → working (AI লিখছে) → ready (অনুমোদনের অপেক্ষায়) → approved (পোস্টের লাইনে) → posted
+     new → working (AI লিখছে) → ready (অনুমোদনের অপেক্ষায়) → approved (পোস্টের লাইনে) → posting → posted
      লিখতে না পারলে failed; পোস্ট ৩ বার ব্যর্থ হলে post_failed; বাদ দিলে rejected।
    অনুমোদনের সময় পাতায় আঁকা কার্ডের JPG `cards`-এ জমা থাকে — পোস্ট হয় সেটাই, হুবহু যা মালিক দেখেছেন। */
 import { DurableObject } from 'cloudflare:workers';
@@ -136,10 +136,18 @@ export class NewsStore extends DurableObject {
   }
   setSlots(slots) { this._setKv('slots', slots); return this.settings(); }
 
-  /* ── পোস্ট ── */
-  nextApproved() {
-    const d = this.sql.exec(`SELECT ${COLS} FROM drafts WHERE status = 'approved' ORDER BY approved_at LIMIT 1`).toArray()[0];
-    return d ? { ...d, jpeg: this.card(d.id) } : null;
+  /* ── পোস্ট — সময়মতো (cron) বা মালিকের "এখনই পোস্ট"। আগে 'posting' করে নেওয়া হয়, তাই দুজন একসাথে একই কার্ড
+     নিলেও একজনই পায় — একই কার্ড দুবার পোস্ট হয় না। id না দিলে লাইনের প্রথমটা ── */
+  claimForPost(id = null, now = Date.now()) {
+    /* মাঝপথে থেমে যাওয়া পোস্ট — ফেসবুকে গেছে কি না জানা নেই, তাই নিজে থেকে আবার নয়; মালিক পেজ দেখে ঠিক করবেন */
+    this.sql.exec("UPDATE drafts SET status = 'post_failed', error = ? WHERE status = 'posting' AND claim_at < ?",
+      'পোস্ট হয়েছে কি না নিশ্চিত নয় — পেজে দেখে নিন; না হয়ে থাকলে "আবার চেষ্টা" দিন', now - 5 * 60000);
+    const d = id
+      ? this.sql.exec(`SELECT ${COLS} FROM drafts WHERE id = ? AND status = 'approved'`, id).toArray()[0]
+      : this.sql.exec(`SELECT ${COLS} FROM drafts WHERE status = 'approved' ORDER BY approved_at LIMIT 1`).toArray()[0];
+    if (!d) return null;
+    this.sql.exec("UPDATE drafts SET status = 'posting', claim_at = ? WHERE id = ?", now, d.id);
+    return { ...d, jpeg: this.card(d.id) };
   }
   markPosted(id, fbPostId, slotKey, now = Date.now()) {
     this.sql.exec("UPDATE drafts SET status = 'posted', posted_at = ?, fb_post_id = ?, error = NULL WHERE id = ?", now, fbPostId, id);
@@ -147,7 +155,7 @@ export class NewsStore extends DurableObject {
   }
   markPostError(id, msg) {
     this.sql.exec(`UPDATE drafts SET attempts = attempts + 1, error = ?,
-      status = CASE WHEN attempts + 1 >= 3 THEN 'post_failed' ELSE status END WHERE id = ?`, msg, id);
+      status = CASE WHEN attempts + 1 >= 3 THEN 'post_failed' ELSE 'approved' END WHERE id = ?`, msg, id);
   }
 
   /* ── পরিষ্কার — বাদ দেওয়া ৩ দিন, পোস্ট হওয়া ১৪ দিন পরে মোছে; পোস্ট হওয়া কার্ডের ছবি ৩ দিন পরে ── */

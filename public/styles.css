@@ -25,6 +25,7 @@ a { color: var(--red); }
 .btn.primary:hover:not(:disabled) { background: var(--red2); }
 .btn.approve { background: var(--ok); color: #fff; font-size: 17px; padding: 14px; }
 .btn.light { background: var(--panel); border-color: var(--line); }
+.now-btn { margin-top: 8px; }
 .btn.small { padding: 7px 12px; font-size: 14px; }
 .btn.wide { width: 100%; }
 .btn.danger-outline { background: transparent; border-color: rgba(192,38,45,.4); color: var(--bad); }

@@ -70,7 +70,7 @@ export async function postIfDue(env, now = Date.now()) {
   const { slots, lastSlot } = await s.settings();
   const slot = dueSlot(slots, now);
   if (!slot || slot === lastSlot) return { skipped: 'এখন পোস্টের সময় নয়' };
-  const item = await s.nextApproved();
+  const item = await s.claimForPost(null, now);
   if (!item) return { skipped: 'লাইনে কোনো অনুমোদিত কার্ড নেই' };
   if (!item.jpeg) { await s.markPostError(item.id, 'কার্ডের ছবি পাওয়া যায়নি'); return { error: 'no card' }; }
   try {
@@ -80,6 +80,23 @@ export async function postIfDue(env, now = Date.now()) {
   } catch (e) {
     await s.markPostError(item.id, String(e.message || e));
     return { error: String(e.message || e) };
+  }
+}
+
+/* ── মালিকের "এখনই পোস্ট করুন" — সময়ের অপেক্ষা ছাড়া, কয়েক সেকেন্ডে। পোস্টের সময়সূচিতে হাত দেয় না ── */
+export async function postNow(env, id) {
+  if (!fbReady(env)) throw new Error('ফেসবুক পেজ যুক্ত নয়');
+  const s = store(env);
+  const item = await s.claimForPost(id, Date.now());
+  if (!item) throw new Error('এটা এখন পোস্ট করা যায় না — পাতা রিফ্রেশ করে দেখুন');
+  if (!item.jpeg) { await s.markPostError(item.id, 'কার্ডের ছবি পাওয়া যায়নি'); throw new Error('কার্ডের ছবি পাওয়া যায়নি'); }
+  try {
+    const fbId = await postPhoto(env, item.jpeg, item.caption);
+    await s.markPosted(item.id, fbId, null);
+    return { posted: item.id, fbId };
+  } catch (e) {
+    await s.markPostError(item.id, String(e.message || e));
+    throw e;
   }
 }
 
@@ -147,6 +164,7 @@ async function api(req, env, ctx, path) {
         if (!file || typeof file === 'string') return fail('কার্ডের ছবি আসেনি');
         return json(await s.approve(id, await file.arrayBuffer(), form.get('caption') || '', Date.now()));
       }
+      if (action === 'post' && method === 'POST') return json(await postNow(env, id));
       if (action === 'unapprove' && method === 'POST') return json(await s.unapprove(id));
       if (action === 'reject' && method === 'POST') return json(await s.reject(id));
       if (action === 'retry' && method === 'POST') return json(await s.retry(id));
