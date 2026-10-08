@@ -289,7 +289,13 @@
   const F = { headline: 'fHeadline', body: 'fBody', category: 'fCategory', date_label: 'fDate', source: 'fSource', caption: 'fCaption' };
   const fields = () => Object.fromEntries(Object.entries(F).map(([k, id]) => [k, $(id).value.trim()]));
   let drawTimer = null;
-  const redraw = () => { clearTimeout(drawTimer); drawTimer = setTimeout(() => Card.drawCard($('canvas'), fields(), photo), 250); };
+  /* ছবি বড়-ছোট ও সরানো — পত্রিকার লোগো বা বাড়তি অংশ কেটে বাদ দিতে */
+  const adj = () => ({ zoom: Number($('adjZoom').value) / 100, x: Number($('adjX').value) / 100, y: Number($('adjY').value) / 100 });
+  const resetAdj = () => { $('adjZoom').value = 100; $('adjX').value = 0; $('adjY').value = 0; };
+  const draw = (f = fields()) => Card.drawCard($('canvas'), f, photo, adj());
+  const redraw = () => { clearTimeout(drawTimer); drawTimer = setTimeout(() => draw(), 150); };
+  for (const id of ['adjZoom', 'adjX', 'adjY']) $(id).addEventListener('input', redraw);
+  $('adjReset').onclick = () => { resetAdj(); redraw(); };
 
   async function openEditor(d) {
     if (!d) return;
@@ -303,9 +309,10 @@
     $('editor').hidden = false;
     $('editor').scrollTop = 0;
     document.body.style.overflow = 'hidden';
+    resetAdj();
     photo = d.image_url ? await Card.loadImg(newsImg(d)) : null;
     if (d.image_url && !photo) say($('editMsg'), 'নিউজের ছবিটা আনা যায়নি — "ছবি বদলান" চেপে নিজের ছবি দিন', 'err');
-    await Card.drawCard($('canvas'), fields(), photo);
+    await draw();
   }
   function closeEditor() { $('editor').hidden = true; document.body.style.overflow = ''; editing = null; }
   $('closeEditor').onclick = closeEditor;
@@ -314,6 +321,7 @@
   $('useNewsPhoto').onclick = async () => {
     photo = await Card.loadImg(newsImg(editing));
     if (!photo) say($('editMsg'), 'নিউজের ছবিটা আনা যায়নি', 'err');
+    resetAdj();
     redraw();
   };
   $('pickPhoto').onclick = () => $('photoFile').click();
@@ -321,12 +329,12 @@
     const file = e.target.files[0];
     if (!file) return;
     const r = new FileReader();
-    r.onload = async ev => { photo = await Card.loadImg(ev.target.result); redraw(); };
+    r.onload = async ev => { photo = await Card.loadImg(ev.target.result); resetAdj(); redraw(); };
     r.readAsDataURL(file);
     e.target.value = '';
   };
   $('download').onclick = async () => {
-    await Card.drawCard($('canvas'), fields(), photo);
+    await draw();
     const blob = await Card.cardJpeg($('canvas'));
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `amar-bangladesh-${Date.now()}.jpg` });
     a.click();
@@ -342,7 +350,7 @@
     let approved = false;
     try {
       await call(`/api/drafts/${editing.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
-      await Card.drawCard($('canvas'), f, photo);
+      await draw(f);
       const form = new FormData();
       form.append('card', await Card.cardJpeg($('canvas')), 'card.jpg');
       form.append('caption', f.caption);

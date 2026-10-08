@@ -134,6 +134,11 @@ label input, label textarea { margin-top: 5px; color: var(--text); font-weight: 
 .side { background: var(--panel); border-radius: var(--r); padding: 16px; box-shadow: var(--shadow); }
 .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .tools .btn { font-size: 14px; padding: 10px 8px; }
+.adjust { margin-top: 14px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 11px; }
+.adjust-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.adjust label { margin-top: 6px; }
+.adjust input[type=range] { padding: 0; border: 0; accent-color: var(--red); }
+.btn.text { background: transparent; color: var(--red); padding: 4px 6px; font-weight: 600; }
 .more { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .more summary { cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 600; }
 .more a { display: inline-block; margin-top: 12px; font-size: 14px; }

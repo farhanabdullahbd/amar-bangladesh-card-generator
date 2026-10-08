@@ -15,10 +15,10 @@ const SYSTEM = `তুমি একজন অভিজ্ঞ বাংলা স
 - শুদ্ধ, সহজ, প্রমিত বাংলায় লিখবে; বানান সাবধানে।
 - headline: ৪৫–৬৫ অক্ষর, ছোট ও জোরালো, খবরের মূল কথা।
 - body: ১৫০–২০০ অক্ষর, ২–৩ বাক্যে খবরের মূল তথ্য।
-- category: এর যেকোনো একটা — ${CATEGORIES.join('/')}
+- subject: খবরের মূল ব্যক্তি বা বিষয়ের ছোট নাম, ২–৩ শব্দে (যেমন "মাহদী আমিন", "ডেঙ্গু", "বিপিএল")।
 - source: যে নিউজ সাইটের খবর, তার বাংলা নাম (যেমন প্রথম আলো, আমার দেশ)।
 
-শুধু এই JSON: {"headline":"...","body":"...","category":"...","source":"..."}`;
+শুধু এই JSON: {"headline":"...","body":"...","subject":"...","source":"..."}`;
 
 export async function writeCard(article, url, env) {
   if (!env.DEEPSEEK_API_KEY) throw new Error('DeepSeek-এর key বসানো নেই (Cloudflare-এর গোপন সেটিংসে DEEPSEEK_API_KEY)');
@@ -48,7 +48,8 @@ export async function writeCard(article, url, env) {
   return {
     headline: String(j.headline).trim(),
     body: String(j.body).trim(),
-    category: CATEGORIES.includes(j.category) ? j.category : 'জাতীয়',
+    /* কার্ডের নিচের পট্টিতে প্রথমে মোটা অক্ষরে (মালিকের রেফারেন্স কার্ড: "এটিএম আজহার") — ঘরের নাম পুরনো (category) */
+    category: String(j.subject || '').trim().slice(0, 40) || (CATEGORIES.includes(j.category) ? j.category : 'জাতীয়'),
     source: String(j.source || '').trim(),
   };
 }

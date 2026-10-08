@@ -126,10 +126,16 @@
           <button class="btn light" id="download">⬇️ ছবি ডাউনলোড</button>
         </div>
         <input type="file" id="photoFile" accept="image/*" hidden />
+        <div class="adjust">
+          <div class="adjust-head"><b>ছবি বড়-ছোট ও সরানো</b><button class="btn text small" id="adjReset">আগের মতো</button></div>
+          <label>বড়-ছোট<input type="range" id="adjZoom" min="100" max="250" value="100" /></label>
+          <label>উপর-নিচ<input type="range" id="adjY" min="-100" max="100" value="0" /></label>
+          <label>ডান-বাম<input type="range" id="adjX" min="-100" max="100" value="0" /></label>
+        </div>
         <details class="more">
-          <summary>আরও ঠিক করুন — ক্যাটাগরি, তারিখ, সূত্র, ফেসবুকের লেখা</summary>
+          <summary>আরও ঠিক করুন — বিষয়, তারিখ, সূত্র, ফেসবুকের লেখা</summary>
           <div class="two">
-            <label>ক্যাটাগরি<input id="fCategory" /></label>
+            <label>বিষয় (নিচে মোটা অক্ষরে)<input id="fCategory" /></label>
             <label>তারিখ<input id="fDate" /></label>
           </div>
           <label>সূত্র<input id="fSource" /></label>

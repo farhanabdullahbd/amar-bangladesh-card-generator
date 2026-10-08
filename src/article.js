@@ -5,6 +5,8 @@
    ফ্রি প্ল্যানের প্রসেসিং-সীমা (প্রতি কাজে ১০ ms CPU) পেরিয়ে কাজ মাঝপথে থেমে যেত, নিউজ "লিখছে…" হয়ে আটকে থাকত।
    প্রতিটা ডাক সময়সীমায় বাঁধা — কোনো সাইট সাড়া না দিলে অনন্তকাল অপেক্ষা নয়। */
 
+import { cleanImageUrl } from './util.js';
+
 const UA = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36';
 const MAX_TEXT = 8000;
 const HEAD_LIMIT = 400_000;
@@ -76,5 +78,5 @@ export async function readArticle(url, env) {
   ]);
   const body = text || [meta.title, meta.description].filter(Boolean).join('\n');
   if (!body) throw new Error(meta.error || 'নিউজের লেখা পড়া যায়নি — লিংকটা ঠিক আছে কি না দেখুন');
-  return { text: body, image: meta.image || '', siteName: meta.siteName || '', title: meta.title || '' };
+  return { text: body, image: meta.image ? cleanImageUrl(meta.image) : '', siteName: meta.siteName || '', title: meta.title || '' };
 }

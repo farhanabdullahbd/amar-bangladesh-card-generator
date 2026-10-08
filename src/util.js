@@ -89,6 +89,20 @@ export function parseAiJson(text) {
   throw new Error('AI-এর উত্তর বোঝা যায়নি');
 }
 
+/* নিউজের ছবি — পত্রিকার লোগো-পট্টি ছাড়া আসল ছবি (৮ অক্টোবর ২০২৬, মালিকের কথা: "ওটা কেটে বসাতে হবে")।
+   প্রথম আলোর মতো সাইট শেয়ার-ছবির ঠিকানাতেই লোগো জুড়ে দেয় (imgix: overlay=…&overlay_position=bottom);
+   এই অংশগুলো বাদ দিলে আসল ছবি আসে। প্রথম আলোর ছবি তারা কেটে চওড়া (৪০:২১) করে দেয় — সেটাও বাদ, পুরো ছবি নেওয়া হয়। */
+export function cleanImageUrl(u) {
+  let url;
+  try { url = new URL(u); } catch { return u; }
+  const drop = [...url.searchParams.keys()].filter(k => /^(overlay|mark|blend|txt|ogimage)/i.test(k));
+  if (/(^|\.)prothomalo\.com$/.test(url.hostname)) drop.push('rect', 'ar', 'mode', 'w');
+  if (!drop.length) return u;
+  for (const k of drop) url.searchParams.delete(k);
+  if (/(^|\.)prothomalo\.com$/.test(url.hostname)) url.searchParams.set('w', '1600');
+  return url.href;
+}
+
 /* ফেসবুক পোস্টের লেখা — হেডলাইন আর বিস্তারিত। ⚠ কোনো লিংক নয়: লিংক থাকলে ফেসবুক পোস্টের রিচ কমিয়ে দেয়
    (মালিকের নির্দেশ, ৮ অক্টোবর ২০২৬) */
 export function buildCaption({ headline, body }) {

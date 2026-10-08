@@ -7,7 +7,7 @@ import { NewsStore } from './store.js';
 import { readArticle } from './article.js';
 import { writeCard } from './ai.js';
 import { fbTokenSet, listPages, postPhoto } from './facebook.js';
-import { bnDateLabel, buildCaption, cleanCaption, dueSlot, extractUrls, parseSlots, upcomingSlots } from './util.js';
+import { bnDateLabel, buildCaption, cleanCaption, cleanImageUrl, dueSlot, extractUrls, parseSlots, upcomingSlots } from './util.js';
 
 export { NewsStore };
 
@@ -142,7 +142,7 @@ export async function postMissing(env, id) {
 /* ── নিউজের ছবি নিজের ঠিকানা দিয়ে — পাতার canvas-এ অন্য সাইটের ছবি আঁকলে JPG বানানো যায় না ── */
 async function proxyImage(u) {
   let url;
-  try { url = new URL(u); } catch { return fail('ছবির লিংক ঠিক নয়'); }
+  try { url = new URL(cleanImageUrl(u)); } catch { return fail('ছবির লিংক ঠিক নয়'); }   // আগের খসড়ার ছবিতেও লোগো-পট্টি বাদ
   if (!/^https?:$/.test(url.protocol)) return fail('ছবির লিংক ঠিক নয়');
   const res = await fetch(url.href, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: url.origin + '/', Accept: 'image/*' } });
   const type = res.headers.get('Content-Type') || '';

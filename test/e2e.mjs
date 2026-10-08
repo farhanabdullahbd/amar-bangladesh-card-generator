@@ -50,7 +50,7 @@ const mock = createServer(async (req, res) => {
       deepseekBroke = false;
       return send(402, 'application/json', JSON.stringify({ error: { message: 'Insufficient Balance' } }));
     }
-    const card = { headline: 'ঢাকায় নতুন মেট্রো লাইনের উদ্বোধন, দিনে চলবে ৫০ হাজার যাত্রী', body: 'প্রধান উপদেষ্টা আজ সকাল ১০টায় নতুন মেট্রো লাইনের উদ্বোধন করেন। প্রতিদিন প্রায় ৫০ হাজার যাত্রী এই লাইনে চলাচল করতে পারবেন।', category: 'জাতীয়', source: 'নমুনা খবর' };
+    const card = { headline: 'ঢাকায় নতুন মেট্রো লাইনের উদ্বোধন, দিনে চলবে ৫০ হাজার যাত্রী', body: 'প্রধান উপদেষ্টা আজ সকাল ১০টায় নতুন মেট্রো লাইনের উদ্বোধন করেন। প্রতিদিন প্রায় ৫০ হাজার যাত্রী এই লাইনে চলাচল করতে পারবেন।', subject: 'মেট্রো রেল', source: 'নমুনা খবর' };
     return send(200, 'application/json', JSON.stringify({ choices: [{ message: { content: 'এই নিন: ' + JSON.stringify(card) } }] }));
   }
   if (u.startsWith('/graph/v23.0/me/accounts')) {

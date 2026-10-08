@@ -4,7 +4,10 @@
    • হেডলাইন সর্বোচ্চ ২ লাইন, ঠিক মাঝখানে, দুই লাইনে ভাগ — প্রথম লাইন একটু বড়, দ্বিতীয়টা একটু ছোট
      (দ্বিতীয় লাইনে একটা শব্দ পড়ে থাকা দেখতে খারাপ); না ধরলে অক্ষর ছোট হয়
    • বিস্তারিত বড় হলে অক্ষর নিজে থেকে ছোট হয়
-   • তিন বিন্দু গোলাপি; মাঝের ব্যাজ আঁকা হয় (ম্যাপ + "আমার" হালকা / "বাংলাদেশ" মোটা); নিচের পট্টির উপরে ছোট সাদা পিল
+   • তিন বিন্দু গোলাপি, হেডলাইন আর বিস্তারিতের ঠিক মাঝখানে; নিচের পট্টির উপরে ছোট সাদা পিল
+   • মাঝের লোগো — মালিকের দেওয়া ছবি (public/badge.png); না এলে আঁকা ব্যাজ
+   • নিচের পট্টি বড় অক্ষরে: শুধু "বিষয়" মোটা, তারিখ আর সূত্র সবচেয়ে চিকন
+   • ছবি বড়-ছোট ও সরানো যায় (adj) — পত্রিকার লোগো বা বাড়তি অংশ কেটে বাদ দিতে
    ব্রাউজারে আঁকা হয় বলে বাংলা যুক্তাক্ষর ঠিক আসে। আঁকার আগে ফন্ট লোড হওয়া পর্যন্ত অপেক্ষা করে। */
 (function () {
   const W = 1279, H = 1600, PHOTO_H = 950, BAR_Y = 1508;
@@ -21,6 +24,8 @@
   /* logos.js-এর const — window-এ থাকে না, নাম ধরেই নিতে হয় */
   /* global MAP_LOGO_B64 */
   const mapLogo = loadImg(typeof MAP_LOGO_B64 !== 'undefined' ? MAP_LOGO_B64 : null);
+  const badgeLogo = loadImg(window.CARD_BADGE_SRC || '/badge.png');
+  const BADGE_RATIO = 484 / 1497, BADGE_RADIUS = 0.055;   // badge.png-এর মাপ আর কোণের গোলাই
   const fonts = Promise.all([300, 400, 600, 700].map(w => document.fonts.load(`${w} 40px ${FONT}`, 'বাংলা abc'))).catch(() => {});
 
   const font = (weight, size) => `${weight} ${size}px ${FONT}`;
@@ -66,9 +71,11 @@
     ctx.closePath();
   }
 
-  async function drawCard(canvas, d, photo) {
+  /* adj: { zoom: 1–2.5, x: -1…1 (বাম…ডান), y: -1…1 (উপর…নিচ) } */
+  async function drawCard(canvas, d, photo, adj = {}) {
     await fonts;
     const map = await mapLogo;
+    const badge = await badgeLogo;
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
     ctx.textBaseline = 'alphabetic';
@@ -77,9 +84,15 @@
     ctx.fillStyle = '#2a2a2a';
     ctx.fillRect(0, 0, W, PHOTO_H);
     if (photo) {
-      const s = Math.max(W / photo.width, PHOTO_H / photo.height);
+      const zoom = Math.min(Math.max(Number(adj.zoom) || 1, 1), 3);
+      const s = Math.max(W / photo.width, PHOTO_H / photo.height) * zoom;
       const sw = photo.width * s, sh = photo.height * s;
-      ctx.drawImage(photo, (W - sw) / 2, (PHOTO_H - sh) / 2, sw, sh);
+      const ox = (sw - W) / 2, oy = (sh - PHOTO_H) / 2;
+      const ax = Math.min(Math.max(Number(adj.x) || 0, -1), 1), ay = Math.min(Math.max(Number(adj.y) || 0, -1), 1);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, W, PHOTO_H); ctx.clip();
+      ctx.drawImage(photo, -ox - ax * ox, -oy - ay * oy, sw, sh);
+      ctx.restore();
     } else {
       const g = ctx.createLinearGradient(0, 0, 0, PHOTO_H);
       g.addColorStop(0, '#3a3a3a'); g.addColorStop(1, '#1a1a1a');
@@ -104,17 +117,25 @@
     ctx.fillStyle = RED;
     ctx.fillRect(0, PHOTO_H, W, BAR_Y - PHOTO_H);
 
-    /* মাঝের ব্যাজ — ম্যাপ + "আমার" (হালকা) / "বাংলাদেশ" (মোটা) */
-    const bw = 372, bh = 126, bx = (W - bw) / 2, by = PHOTO_H - bh / 2;
-    ctx.fillStyle = BADGE;
-    roundRect(ctx, bx, by, bw, bh, 18);
-    ctx.fill();
-    if (map) ctx.drawImage(map, bx + 4, by + 2, 124, 124);
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
-    ctx.font = font(400, 40);
-    ctx.fillText('আমার', bx + 146, by + 56);
-    ctx.font = font(700, 46);
-    ctx.fillText('বাংলাদেশ', bx + 146, by + 106);
+    /* মাঝের লোগো — মালিকের দেওয়া ছবি, কোণ গোল করে (ছবির কোণের কালো অংশ বাদ) */
+    const bw = 400, bh = Math.round(bw * BADGE_RATIO), bx = (W - bw) / 2, by = PHOTO_H - bh / 2;
+    if (badge) {
+      ctx.save();
+      roundRect(ctx, bx + 1, by + 1, bw - 2, bh - 2, bw * BADGE_RADIUS);
+      ctx.clip();
+      ctx.drawImage(badge, bx, by, bw, bh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = BADGE;
+      roundRect(ctx, bx, by, bw, bh, 18);
+      ctx.fill();
+      if (map) ctx.drawImage(map, bx + 8, by + 2, 124, 124);
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+      ctx.font = font(400, 40);
+      ctx.fillText('আমার', bx + 150, by + 56);
+      ctx.font = font(700, 46);
+      ctx.fillText('বাংলাদেশ', bx + 150, by + 106);
+    }
 
     /* হেডলাইন — সর্বোচ্চ ২ লাইন, ভারসাম্য রেখে, মাঝখানে */
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
@@ -131,14 +152,11 @@
     ctx.font = font(700, hSize);
     let y = PHOTO_H + bh / 2 + 20 + hSize;
     for (const l of hl) { ctx.fillText(l, W / 2, y); y += hLine; }
-
-    /* গোলাপি তিন বিন্দু */
-    const dotsY = y - hLine + 52;
-    ctx.fillStyle = PINK;
-    for (const dx of [-22, 0, 22]) { ctx.beginPath(); ctx.arc(W / 2 + dx, dotsY - 8, 4.5, 0, Math.PI * 2); ctx.fill(); }
+    const hBottom = y - hLine + hSize * 0.3;          // হেডলাইনের শেষ লাইনের নিচ
 
     /* বিস্তারিত — চিকন অক্ষর; লেখা বেশি হলে নিজে থেকে ছোট */
-    const top = dotsY + 30, bottom = BAR_Y - 34, maxW = W - 130;
+    const GAP = 64;                                    // হেডলাইন আর বিস্তারিতের মাঝে ডটের জায়গা
+    const top = hBottom + GAP, bottom = BAR_Y - 34, maxW = W - 130;
     let bl = [], bSize = 26, bLine = 37;
     for (const fs of [40, 38, 36, 34, 32, 30, 28, 26]) {
       const lh = Math.round(fs * 1.42);
@@ -149,8 +167,14 @@
     ctx.font = font(300, bSize); ctx.fillStyle = '#fff';
     /* বিস্তারিত ছোট হলে নিচে ফাঁকা পড়ে না থেকে একটু মাঝের দিকে নামে */
     const spare = (bottom - top) - bl.length * bLine;
-    y = top + bSize + (spare > 0 ? Math.min(spare / 2, 50) : 0);
+    const bodyTop = top + (spare > 0 ? Math.min(spare / 2, 50) : 0);
+    y = bodyTop + bSize;
     for (const l of bl) { if (y > bottom + 4) break; ctx.fillText(l, W / 2, y); y += bLine; }
+
+    /* গোলাপি তিন বিন্দু — হেডলাইন আর বিস্তারিতের ঠিক মাঝখানে */
+    const dotsY = (hBottom + bodyTop + bSize * 0.25) / 2;
+    ctx.fillStyle = PINK;
+    for (const dx of [-22, 0, 22]) { ctx.beginPath(); ctx.arc(W / 2 + dx, dotsY, 4.5, 0, Math.PI * 2); ctx.fill(); }
 
     /* নিচের পট্টি আর তার উপরে ছোট সাদা পিল */
     ctx.fillStyle = BAR;
@@ -158,9 +182,17 @@
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     roundRect(ctx, (W - 128) / 2, BAR_Y - 14, 128, 14, 7);
     ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-    ctx.font = font(600, 33);
-    ctx.fillText(`${d.category || 'জাতীয়'} • ${d.date_label || ''} • সূত্র: ${d.source || ''}`, W / 2, BAR_Y + 58);
+    const parts = [
+      [700, d.category || 'জাতীয়'], [300, '  •  '], [300, d.date_label || ''], [300, '  •  '], [300, `সূত্র: ${d.source || ''}`],
+    ].filter(p => p[1]);
+    let fs = 40, total = 0;
+    for (; fs >= 26; fs -= 2) {
+      total = parts.reduce((t, [w, s]) => { ctx.font = font(w, fs); return t + ctx.measureText(s).width; }, 0);
+      if (total <= W - 80) break;
+    }
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+    let fx = (W - total) / 2;
+    for (const [w, s] of parts) { ctx.font = font(w, fs); ctx.fillText(s, fx, BAR_Y + 46 + fs * 0.35); fx += ctx.measureText(s).width; }
   }
 
   /* JPG বানানো — ফেসবুকে যা যাবে (২ MB-এর মধ্যে) */

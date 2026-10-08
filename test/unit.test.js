@@ -63,3 +63,15 @@ test('নিউজ পাতার og: ট্যাগ — property/name, এক
   assert.equal(m.title, 'শিরোনাম "উদ্ধৃতি"');
   assert.equal(m.description, 'বিবরণ');
 });
+
+test('নিউজের ছবি — পত্রিকার লোগো-পট্টি (overlay) আর প্রথম আলোর কাটা অংশ বাদ', async () => {
+  const { cleanImageUrl } = await import('../src/util.js');
+  const pa = 'https://media.prothomalo.com/prothomalo-bangla%2F2026-10-08%2F8ns2ecez%2Fa.png?rect=0%2C298%2C1098%2C576&w=1200&ar=40%3A21&auto=format%2Ccompress&ogImage=true&mode=crop&overlay=https%3A%2F%2Fmedia.prothomalo.com%2Fb.jpg&overlay_position=bottom&overlay_width_pct=1';
+  const c = new URL(cleanImageUrl(pa));
+  assert.deepEqual([...c.searchParams.keys()].sort(), ['auto', 'w']);
+  assert.equal(c.searchParams.get('w'), '1600');
+  assert.equal(c.pathname, '/prothomalo-bangla%2F2026-10-08%2F8ns2ecez%2Fa.png');
+  const other = 'https://x.com/a.jpg?w=800&h=600';
+  assert.equal(cleanImageUrl(other), other);                     // লোগো-পট্টি নেই — যেমন ছিল
+  assert.equal(new URL(cleanImageUrl('https://img.x.com/a.jpg?mark=logo.png&w=900')).search, '?w=900');
+});
