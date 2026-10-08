@@ -6,7 +6,7 @@
 import { NewsStore } from './store.js';
 import { readArticle } from './article.js';
 import { writeCard } from './ai.js';
-import { fbReady, postPhoto } from './facebook.js';
+import { fbMissing, fbReady, postPhoto } from './facebook.js';
 import { bnDateLabel, buildCaption, dueSlot, extractUrls, parseSlots, upcomingSlots } from './util.js';
 
 export { NewsStore };
@@ -132,7 +132,7 @@ async function api(req, env, ctx, path) {
     return json({
       drafts, slots: settings.slots,
       upcoming: upcomingSlots(settings.slots, Date.now(), 40, settings.lastSlot),
-      health: { ai: !!env.DEEPSEEK_API_KEY, fb: fbReady(env) },
+      health: { ai: !!env.DEEPSEEK_API_KEY, fb: fbReady(env), fbMissing: fbMissing(env) },
     });
   }
   if (path === '/api/links' && method === 'POST') {

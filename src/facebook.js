@@ -2,7 +2,11 @@
    লাগে পেজের আইডি (FB_PAGE_ID) আর পেজের স্থায়ী টোকেন (FB_PAGE_TOKEN) — দুটোই Cloudflare-এর গোপন সেটিংসে।
    ব্যক্তিগত প্রোফাইলে পোস্ট করা যায় না, শুধু পেজে। */
 
-export const fbReady = env => !!(env.FB_PAGE_ID && env.FB_PAGE_TOKEN);
+/* বসানোর সময় আগে-পরে ফাঁকা জায়গা থেকে গেলেও চলে */
+const conf = env => ({ id: String(env.FB_PAGE_ID || '').trim(), token: String(env.FB_PAGE_TOKEN || '').trim() });
+export const fbReady = env => { const c = conf(env); return !!(c.id && c.token); };
+/* কোন ঘরটা নেই — সেটিংসে দেখানোর জন্য */
+export const fbMissing = env => { const c = conf(env); return [!c.id && 'FB_PAGE_ID', !c.token && 'FB_PAGE_TOKEN'].filter(Boolean); };
 
 export async function postPhoto(env, jpeg, caption) {
   const base = env.FB_GRAPH_BASE || 'https://graph.facebook.com';
@@ -11,8 +15,9 @@ export async function postPhoto(env, jpeg, caption) {
   form.append('source', new Blob([jpeg], { type: 'image/jpeg' }), 'card.jpg');
   form.append('caption', caption || '');
   form.append('published', 'true');
-  form.append('access_token', env.FB_PAGE_TOKEN);
-  const res = await fetch(`${base}/${ver}/${env.FB_PAGE_ID}/photos`, { method: 'POST', body: form });
+  const c = conf(env);
+  form.append('access_token', c.token);
+  const res = await fetch(`${base}/${ver}/${c.id}/photos`, { method: 'POST', body: form });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) {
     const e = data.error || {};

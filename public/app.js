@@ -210,7 +210,7 @@
     $('sAi').className = h.ai ? 'ok' : 'no';
     $('sFb').textContent = h.fb ? '✅ যুক্ত' : '⚠️ যুক্ত নয়';
     $('sFb').className = h.fb ? 'ok' : 'no';
-    $('fbHelp').textContent = h.fb ? '' : 'পেজ যুক্ত করতে পেজের আইডি আর একটা স্থায়ী টোকেন লাগবে — Claude ধাপে ধাপে করে দেবে।';
+    $('fbHelp').textContent = h.fb ? '' : `Cloudflare-এ পাওয়া যাচ্ছে না: ${(h.fbMissing || ['FB_PAGE_ID', 'FB_PAGE_TOKEN']).join(', ')}। Settings → Variables and Secrets-এ হুবহু এই নামে, "Secret" টিক দিয়ে বসান।`;
   }
   async function saveSlots(list, msg) {
     try {
