@@ -7,98 +7,132 @@
   <title>আমার বাংলাদেশ — নিউজ কার্ড</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Tiro+Bangla&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Tiro+Bangla&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <!-- লগইন -->
   <section id="login" class="login" hidden>
-    <form id="loginForm" class="box">
-      <h1>আমার বাংলাদেশ</h1>
-      <p class="muted">নিউজ কার্ড — শুধু মালিকের জন্য</p>
-      <label>পাসওয়ার্ড<input type="password" id="password" autocomplete="current-password" required /></label>
-      <button class="btn primary" type="submit">ঢুকুন</button>
+    <form id="loginForm" class="panel">
+      <div class="brand-big">আমার বাংলাদেশ</div>
+      <p class="hint">নিউজ কার্ড — পাসওয়ার্ড দিয়ে ঢুকুন</p>
+      <input type="password" id="password" placeholder="পাসওয়ার্ড" autocomplete="current-password" required />
+      <button class="btn primary wide" type="submit">ঢুকুন</button>
       <p class="msg" id="loginMsg"></p>
     </form>
   </section>
 
-  <!-- মূল পাতা -->
-  <main id="app" hidden>
-    <header class="top">
-      <div>
-        <h1>আমার বাংলাদেশ</h1>
-        <div class="chips" id="health"></div>
-      </div>
-      <button class="btn ghost small" id="logout">বের হোন</button>
-    </header>
+  <header class="bar" id="bar" hidden>
+    <div class="brand">আমার বাংলাদেশ <span>নিউজ কার্ড</span></div>
+    <button class="btn light" id="openSettings">⚙️ সেটিংস</button>
+  </header>
 
-    <section class="box">
-      <label for="links">নিউজের লিংক দিন <span class="muted">(একাধিক হলে প্রতি লাইনে একটা)</span></label>
-      <textarea id="links" rows="3" placeholder="https://..."></textarea>
-      <div class="row">
-        <button class="btn primary" id="addLinks">যোগ করুন</button>
-        <span class="msg" id="addMsg"></span>
-      </div>
+  <!-- মূল পাতা — তিন ধাপ -->
+  <main id="home" class="wrap" hidden>
+    <div id="banner"></div>
+
+    <section class="step">
+      <div class="step-head"><span class="num">১</span><div><h2>নিউজের লিংক দিন</h2><p class="hint">লিংক দিলে বাকিটা সাইট নিজে করবে — নিউজ পড়বে, লিখবে, কার্ড বানাবে। একসাথে কয়েকটা দিলে প্রতি লাইনে একটা।</p></div></div>
+      <textarea id="links" rows="2" placeholder="https://..."></textarea>
+      <button class="btn primary wide" id="addLinks">কার্ড বানান</button>
+      <p class="msg" id="addMsg"></p>
     </section>
 
-    <nav class="tabs" id="tabs">
-      <button data-tab="ready" class="on">অনুমোদন বাকি <b></b></button>
-      <button data-tab="approved">পোস্টের লাইনে <b></b></button>
-      <button data-tab="working">লেখা হচ্ছে <b></b></button>
-      <button data-tab="posted">পোস্ট হয়েছে <b></b></button>
-      <button data-tab="failed">সমস্যা <b></b></button>
-      <button data-tab="schedule">সময়সূচি</button>
-    </nav>
+    <section class="step">
+      <div class="step-head"><span class="num">২</span><div><h2>দেখে অনুমোদন দিন <b class="count" id="cTodo"></b></h2><p class="hint">কার্ড খুলে দেখুন, দরকার হলে লেখা বা ছবি ঠিক করুন, তারপর অনুমোদন দিন। অনুমোদন ছাড়া কিছুই পোস্ট হয় না।</p></div></div>
+      <div id="todo" class="cards"></div>
+    </section>
 
-    <section id="list" class="list"></section>
+    <section class="step">
+      <div class="step-head"><span class="num">৩</span><div><h2>পোস্টের অপেক্ষায় <b class="count" id="cQueue"></b></h2><p class="hint">অনুমোদিত কার্ড এই ক্রমে, পাশে লেখা সময়ে, ফেসবুক পেজে নিজে থেকে চলে যাবে।</p></div></div>
+      <div id="queue" class="rows"></div>
+    </section>
 
-    <section id="schedule" class="box" hidden>
-      <label for="slots">পোস্টের সময় <span class="muted">(বাংলাদেশের সময়, ২৪ ঘণ্টার হিসাবে — যেমন 08:00, 14:30)</span></label>
-      <textarea id="slots" rows="4"></textarea>
-      <div class="row">
-        <button class="btn primary" id="saveSlots">সংরক্ষণ</button>
-        <span class="msg" id="slotsMsg"></span>
+    <details class="step done" id="doneBox">
+      <summary><h2>পোস্ট হয়ে গেছে <b class="count" id="cDone"></b></h2><span class="hint">গত ৩ দিনের</span></summary>
+      <div id="done" class="rows"></div>
+    </details>
+  </main>
+
+  <!-- সেটিংস -->
+  <main id="settings" class="wrap" hidden>
+    <button class="btn light" id="closeSettings">← ফিরে যান</button>
+    <h1 class="page-title">সেটিংস</h1>
+
+    <section class="panel">
+      <h2>পোস্টের সময়</h2>
+      <p class="hint">প্রতিদিন এই সময়গুলোতে একটা করে কার্ড ফেসবুকে যাবে (বাংলাদেশের সময়)। কোনো সময়ে লাইনে কার্ড না থাকলে সেটা বাদ যায়।</p>
+      <div id="slotList" class="slots"></div>
+      <p class="hint" id="slotCount"></p>
+      <div class="add-time">
+        <input type="time" id="newSlot" />
+        <button class="btn primary" id="addSlot">সময় যোগ করুন</button>
       </div>
-      <p class="muted">প্রতিটা সময়ে লাইনের প্রথম অনুমোদিত কার্ডটা পোস্ট হয়। লাইনে কিছু না থাকলে সেই সময়টা বাদ যায়; সময়ের পরে আধা ঘণ্টার মধ্যে অনুমোদন দিলে তখনই যায়।</p>
+      <button class="btn light small" id="resetSlots">শুরুর মতো করে দিন (সকাল ৮টা–রাত ১০টা, প্রতি ঘণ্টায়)</button>
+      <p class="msg" id="slotsMsg"></p>
+    </section>
+
+    <section class="panel">
+      <h2>সংযোগ</h2>
+      <div class="status-row"><span>লেখার AI (DeepSeek)</span><b id="sAi"></b></div>
+      <div class="status-row"><span>ফেসবুক পেজ</span><b id="sFb"></b></div>
+      <p class="hint" id="fbHelp"></p>
+    </section>
+
+    <section class="panel">
+      <h2>কীভাবে কাজ করে</h2>
+      <ol class="how">
+        <li>আপনি নিউজের লিংক দেন।</li>
+        <li>সাইট নিউজটা পড়ে, AI দিয়ে হেডলাইন আর ছোট বিস্তারিত লেখে, নিউজের ছবি বসিয়ে কার্ড বানায় (আধা মিনিটের মতো লাগে)।</li>
+        <li>আপনি কার্ড দেখে দরকার হলে ঠিক করে অনুমোদন দেন।</li>
+        <li>অনুমোদিত কার্ড পরের ঠিক করা সময়ে ফেসবুক পেজে পোস্ট হয়।</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>অ্যাকাউন্ট</h2>
+      <button class="btn danger-outline" id="logout">বের হোন</button>
     </section>
   </main>
 
   <!-- কার্ড দেখা ও অনুমোদন -->
   <section id="editor" class="editor" hidden>
-    <div class="editor-in">
-      <div class="editor-head">
-        <b>কার্ড দেখুন, দরকার হলে ঠিক করুন</b>
-        <button class="btn ghost small" id="closeEditor">বন্ধ</button>
-      </div>
-      <div class="editor-grid">
-        <div class="preview"><canvas id="canvas" width="1279" height="1600"></canvas></div>
-        <div class="fields">
-          <label>হেডলাইন<textarea id="fHeadline" rows="3"></textarea></label>
-          <label>বিস্তারিত<textarea id="fBody" rows="5"></textarea></label>
+    <div class="editor-bar">
+      <button class="btn light" id="closeEditor">← ফিরে যান</button>
+      <b>কার্ড দেখুন</b>
+      <span></span>
+    </div>
+    <div class="editor-body">
+      <div class="preview"><canvas id="canvas" width="1279" height="1600"></canvas></div>
+      <div class="side">
+        <button class="btn approve wide" id="approve">✅ ঠিক আছে — অনুমোদন দিন</button>
+        <p class="msg" id="editMsg"></p>
+        <p class="hint">লেখা বদলাতে নিচের ঘরে ঠিক করুন — কার্ডে সাথে সাথে বদলে যাবে।</p>
+        <label>হেডলাইন<textarea id="fHeadline" rows="3"></textarea></label>
+        <label>বিস্তারিত<textarea id="fBody" rows="5"></textarea></label>
+        <div class="tools">
+          <button class="btn light" id="pickPhoto">🖼 ছবি বদলান</button>
+          <button class="btn light" id="useNewsPhoto">↩ নিউজের ছবি</button>
+          <button class="btn light" id="rewrite">🔄 AI দিয়ে আবার লেখান</button>
+          <button class="btn light" id="download">⬇️ ছবি ডাউনলোড</button>
+        </div>
+        <input type="file" id="photoFile" accept="image/*" hidden />
+        <details class="more">
+          <summary>আরও ঠিক করুন — ক্যাটাগরি, তারিখ, সূত্র, ফেসবুকের লেখা</summary>
           <div class="two">
             <label>ক্যাটাগরি<input id="fCategory" /></label>
             <label>তারিখ<input id="fDate" /></label>
           </div>
           <label>সূত্র<input id="fSource" /></label>
-          <div class="photo-row">
-            <span>ছবি:</span>
-            <button class="btn ghost small" id="useNewsPhoto">নিউজের ছবি</button>
-            <button class="btn ghost small" id="pickPhoto">নিজের ছবি দিন</button>
-            <input type="file" id="photoFile" accept="image/*" hidden />
-          </div>
-          <label>ফেসবুকের লেখা<textarea id="fCaption" rows="5"></textarea></label>
-          <p class="muted small"><a id="srcLink" target="_blank" rel="noopener">মূল নিউজ খুলুন ↗</a></p>
-          <div class="actions">
-            <button class="btn primary" id="approve">✅ অনুমোদন — পোস্টের লাইনে দিন</button>
-            <button class="btn ghost" id="rewrite">🔄 AI দিয়ে আবার লেখান</button>
-            <button class="btn ghost" id="download">⬇️ JPG ডাউনলোড</button>
-            <button class="btn danger" id="reject">🗑 বাদ দিন</button>
-          </div>
-          <p class="msg" id="editMsg"></p>
-        </div>
+          <label>ফেসবুক পোস্টের লেখা<textarea id="fCaption" rows="5"></textarea></label>
+          <a id="srcLink" target="_blank" rel="noopener">মূল নিউজটা খুলুন ↗</a>
+        </details>
+        <button class="btn text-danger" id="reject">🗑 এই নিউজ বাদ দিন</button>
       </div>
     </div>
   </section>
+
+  <div id="toast" class="toast" hidden></div>
 
   <script src="/logos.js"></script>
   <script src="/card.js"></script>

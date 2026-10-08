@@ -1,11 +1,11 @@
-/* ─── ড্যাশবোর্ড — লিংক দেওয়া, কার্ড দেখা-ঠিক করা-অনুমোদন, লাইন আর সময়সূচি ─── */
+/* ─── ড্যাশবোর্ড — তিন ধাপ: লিংক দিন → দেখে অনুমোদন দিন → পোস্টের অপেক্ষা; আলাদা সেটিংস ───
+   (৮ অক্টোবর ২০২৬: মালিকের কথায় আগের ছয় ট্যাবের পাতা সহজ করা হলো) */
 (function () {
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const BN = s => String(s).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
 
   let state = { drafts: [], slots: [], upcoming: [], health: {} };
-  let tab = 'ready';
   let editing = null;       // যে নিউজটা খোলা
   let photo = null;         // কার্ডের ছবি (Image)
   let processing = false;
@@ -15,125 +15,166 @@
     const ct = res.headers.get('Content-Type') || '';
     const data = ct.includes('json') ? await res.json() : null;
     if (res.status === 401 && path !== '/api/login') { showLogin(); throw new Error('লগইন করুন'); }
-    if (!res.ok) throw new Error(data?.error || `সমস্যা (${res.status})`);
+    if (!res.ok) throw new Error(data?.error || `সমস্যা হয়েছে (${res.status}) — আবার চেষ্টা করুন`);
     return data;
   }
   const post = (path, body) => call(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   const say = (el, text, kind = '') => { el.textContent = text; el.className = 'msg ' + kind; };
+  let toastTimer = null;
+  const toast = text => { const t = $('toast'); t.textContent = text; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3000); };
+
+  /* ── পাতা বদল ── */
+  function show(view) {
+    $('login').hidden = view !== 'login';
+    $('bar').hidden = view === 'login';
+    $('home').hidden = view !== 'home';
+    $('settings').hidden = view !== 'settings';
+    window.scrollTo(0, 0);
+  }
+  function showLogin() { $('editor').hidden = true; show('login'); $('password').focus(); }
+  $('openSettings').onclick = () => { renderSettings(); show('settings'); };
+  $('closeSettings').onclick = () => { show('home'); render(); };
 
   /* ── লগইন ── */
-  function showLogin() { $('app').hidden = true; $('editor').hidden = true; $('login').hidden = false; $('password').focus(); }
   $('loginForm').onsubmit = async e => {
     e.preventDefault();
     say($('loginMsg'), 'ঢুকছি…');
     try {
       await post('/api/login', { password: $('password').value });
       $('password').value = '';
-      $('login').hidden = true;
-      await start();
+      say($('loginMsg'), '');
+      show('home');
+      await refresh();
     } catch (err) { say($('loginMsg'), err.message, 'err'); }
   };
   $('logout').onclick = async () => { await post('/api/logout').catch(() => {}); showLogin(); };
 
-  /* ── অবস্থা আনা ও আঁকা ── */
-  const GROUP = { ready: ['ready'], approved: ['approved'], working: ['new', 'working'], posted: ['posted'], failed: ['failed', 'post_failed'] };
-  const imgSrc = d => d.status === 'approved' || d.status === 'post_failed' ? `/api/drafts/${d.id}/card.jpg`
-    : d.image_url ? `/api/img?u=${encodeURIComponent(d.image_url)}` : '';
-  const when = ms => ms ? new Date(ms).toLocaleString('bn-BD', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  /* ── সময় দেখানো ── */
+  const bdToday = off => new Date(Date.now() + 6 * 3600e3 + off * 86400e3).toISOString().slice(0, 10);
+  const timeLabel = t => {
+    const [h, m] = t.split(':').map(Number);
+    const part = h < 5 ? 'রাত' : h < 12 ? 'সকাল' : h < 15 ? 'দুপুর' : h < 18 ? 'বিকেল' : h < 20 ? 'সন্ধ্যা' : 'রাত';
+    return `${part} ${BN(((h + 11) % 12) + 1)}:${BN(String(m).padStart(2, '0'))}`;
+  };
   const slotLabel = key => {
     const [date, t] = key.split(' ');
-    const today = new Date(Date.now() + 6 * 3600e3).toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 30 * 3600e3).toISOString().slice(0, 10);
-    const [h, m] = t.split(':').map(Number);
-    const tt = `${h < 12 ? 'সকাল' : h < 15 ? 'দুপুর' : h < 18 ? 'বিকেল' : h < 20 ? 'সন্ধ্যা' : 'রাত'} ${BN(((h + 11) % 12) + 1)}:${BN(String(m).padStart(2, '0'))}`;
-    return `${date === today ? 'আজ' : date === tomorrow ? 'কাল' : BN(date.slice(8)) + ' তারিখ'} ${tt}`;
+    const day = date === bdToday(0) ? 'আজ' : date === bdToday(1) ? 'কাল' : `${BN(Number(date.slice(8)))} তারিখ`;
+    return `${day} ${timeLabel(t)}`;
+  };
+  const ago = ms => {
+    const min = Math.round((Date.now() - ms) / 60000);
+    if (min < 1) return 'এইমাত্র';
+    if (min < 60) return `${BN(min)} মিনিট আগে`;
+    if (min < 1440) return `${BN(Math.round(min / 60))} ঘণ্টা আগে`;
+    return new Date(ms).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long' });
   };
 
+  /* ── অবস্থা আনা ও আঁকা ── */
   async function refresh() {
     state = await call('/api/state');
     render();
     if (state.drafts.some(d => d.status === 'new' || d.status === 'working')) runQueue();
   }
 
+  const newsImg = d => d.image_url ? `/api/img?u=${encodeURIComponent(d.image_url)}` : '';
+  const pic = (src, cls = '') => src
+    ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;noimg&quot;></div>'">`
+    : '<div class="noimg"></div>';
+
   function render() {
     const h = state.health || {};
-    $('health').innerHTML =
-      `<span class="chip ${h.ai ? 'ok' : 'bad'}">AI ${h.ai ? 'চালু' : 'key নেই'}</span>` +
-      `<span class="chip ${h.fb ? 'ok' : 'bad'}">ফেসবুক ${h.fb ? 'যুক্ত' : 'যুক্ত নয়'}</span>` +
-      `<span class="chip">দিনে ${BN(state.slots.length)}টা পোস্ট</span>`;
-    for (const b of $('tabs').querySelectorAll('button')) {
-      const g = GROUP[b.dataset.tab];
-      b.classList.toggle('on', b.dataset.tab === tab);
-      if (g) b.querySelector('b').textContent = BN(state.drafts.filter(d => g.includes(d.status)).length);
-    }
-    $('schedule').hidden = tab !== 'schedule';
-    $('list').hidden = tab === 'schedule';
-    if (tab === 'schedule') { if (document.activeElement !== $('slots')) $('slots').value = state.slots.join(', '); return; }
+    const by = (...st) => state.drafts.filter(d => st.includes(d.status));
 
-    let items = state.drafts.filter(d => GROUP[tab].includes(d.status));
-    if (tab === 'approved') items = items.sort((a, b) => a.approved_at - b.approved_at);
-    if (tab === 'posted') items = items.sort((a, b) => b.posted_at - a.posted_at);
-    if (!items.length) { $('list').innerHTML = `<div class="empty">${EMPTY[tab]}</div>`; return; }
-    $('list').innerHTML = items.map((d, i) => row(d, i)).join('');
+    /* সতর্কবার্তা — শুধু দরকার হলে */
+    const notes = [];
+    if (!h.ai) notes.push('<div class="note bad">⚠️ লেখার AI চালু নেই — DeepSeek-এর key বসানো হয়নি। সেটিংসে দেখুন।</div>');
+    if (!h.fb) notes.push('<div class="note warn">ℹ️ ফেসবুক পেজ এখনো যুক্ত হয়নি। অনুমোদিত কার্ড জমা থাকবে; পেজ যুক্ত হলে সময়মতো পোস্ট হবে।</div>');
+    $('banner').innerHTML = notes.join('');
+
+    /* ধাপ ২ — লেখা হচ্ছে, অনুমোদন বাকি, সমস্যা */
+    const todo = [...by('failed'), ...by('ready'), ...by('new', 'working')];
+    $('cTodo').textContent = todo.length ? BN(todo.length) : '';
+    $('todo').innerHTML = todo.length ? todo.map(cardItem).join('')
+      : '<div class="empty">এখন কিছু নেই। উপরে লিংক দিলে কার্ড এখানে আসবে।</div>';
+    $('todo').style.display = todo.length ? '' : 'block';
+
+    /* ধাপ ৩ — পোস্টের অপেক্ষায় */
+    const queue = by('approved').sort((a, b) => a.approved_at - b.approved_at);
+    const stuck = by('post_failed');
+    $('cQueue').textContent = queue.length + stuck.length ? BN(queue.length + stuck.length) : '';
+    $('queue').innerHTML = (queue.length || stuck.length)
+      ? [...stuck.map(d => queueRow(d, null)), ...queue.map((d, i) => queueRow(d, state.upcoming[i]))].join('')
+      : '<div class="empty">এখন কিছু নেই। ধাপ ২-এ অনুমোদন দিলে এখানে আসবে।</div>';
+
+    /* পোস্ট হয়ে গেছে */
+    const done = by('posted').sort((a, b) => b.posted_at - a.posted_at);
+    $('cDone').textContent = done.length ? BN(done.length) : '';
+    $('done').innerHTML = done.length ? done.map(doneRow).join('') : '<div class="empty">গত ৩ দিনে কিছু পোস্ট হয়নি।</div>';
   }
-  const EMPTY = {
-    ready: 'অনুমোদনের জন্য কিছু নেই — উপরে লিংক দিন',
-    approved: 'পোস্টের লাইনে কিছু নেই',
-    working: 'এখন কিছু লেখা হচ্ছে না',
-    posted: 'গত ৩ দিনে কিছু পোস্ট হয়নি',
-    failed: 'কোনো সমস্যা নেই',
-  };
 
-  function row(d, i) {
-    const src = imgSrc(d);
-    const pic = src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'ছবি নেই'}))">` : '<div class="noimg">ছবি নেই</div>';
-    const head = d.headline ? esc(d.headline) : `<span class="muted">${esc(d.url)}</span>`;
-    let meta = '', extra = '', acts = '';
-    if (d.status === 'ready') {
-      meta = `${esc(d.source)} · ${esc(d.category)}`;
-      acts = `<button class="btn primary small" data-open="${d.id}">দেখুন ও অনুমোদন দিন</button><button class="btn danger small" data-act="reject" data-id="${d.id}">বাদ</button>`;
-    } else if (d.status === 'approved') {
-      const slot = state.upcoming[i];
-      meta = `${esc(d.source)} · অনুমোদন ${when(d.approved_at)}`;
-      extra = state.health.fb ? `<div class="w">পোস্ট হবে: ${slot ? slotLabel(slot) : 'সামনের কোনো সময়ে'}</div>` : '<div class="w">ফেসবুক যুক্ত হলে পোস্ট হবে</div>';
-      if (d.error) extra += `<div class="e">শেষ চেষ্টায় সমস্যা: ${esc(d.error)}</div>`;
-      acts = `<button class="btn ghost small" data-act="unapprove" data-id="${d.id}">ফিরিয়ে আনুন (ঠিক করতে)</button><button class="btn danger small" data-act="reject" data-id="${d.id}">বাদ</button>`;
-    } else if (d.status === 'new' || d.status === 'working') {
-      meta = d.status === 'working' ? 'নিউজ পড়ে লিখছে…' : 'লাইনে আছে, একটু পরে লিখবে';
-    } else if (d.status === 'posted') {
-      meta = `পোস্ট হয়েছে ${when(d.posted_at)}`;
-      if (d.fb_post_id) acts = `<a class="btn ghost small" href="https://www.facebook.com/${esc(d.fb_post_id)}" target="_blank" rel="noopener">ফেসবুকে দেখুন ↗</a>`;
+  function cardItem(d) {
+    if (d.status === 'new' || d.status === 'working') {
+      return `<div class="c working"><div class="pic"><div class="spin"></div></div><div class="body">
+        <div class="h">কার্ড তৈরি হচ্ছে…</div><div class="m">${esc(d.url)}</div><div class="m">সাধারণত আধা মিনিট লাগে</div>
+        <div class="actions"><button class="btn light" data-act="reject" data-id="${d.id}">বাতিল</button></div></div></div>`;
+    }
+    if (d.status === 'failed') {
+      return `<div class="c failed"><div class="pic">⚠️ হয়নি</div><div class="body">
+        <div class="m">${esc(d.url)}</div><div class="err">${esc(d.error || 'লেখা যায়নি')}</div>
+        <div class="actions"><button class="btn primary" data-act="retry" data-id="${d.id}">আবার চেষ্টা</button><button class="btn light" data-act="reject" data-id="${d.id}">বাদ দিন</button></div></div></div>`;
+    }
+    return `<div class="c"><div class="pic">${newsImg(d) ? pic(newsImg(d)) : 'ছবি নেই'}</div><div class="body">
+      <div class="h">${esc(d.headline)}</div><div class="m">${esc(d.source)} · ${ago(d.created_at)}</div>
+      <div class="actions"><button class="btn primary" data-open="${d.id}">দেখুন ও অনুমোদন দিন</button></div></div></div>`;
+  }
+
+  function queueRow(d, slot) {
+    const card = `/api/drafts/${d.id}/card.jpg`;
+    let when, extra = '', acts;
+    if (d.status === 'post_failed') {
+      when = '<span class="when bad">পোস্ট হয়নি</span>';
+      extra = `<div class="err">${esc(d.error || '')}</div>`;
+      acts = `<button class="btn primary small" data-act="retry" data-id="${d.id}">আবার চেষ্টা</button><button class="btn light small" data-act="reject" data-id="${d.id}">বাদ দিন</button>`;
     } else {
-      meta = d.status === 'post_failed' ? 'পোস্ট হয়নি (৩ বার চেষ্টা)' : 'লেখা যায়নি';
-      extra = `<div class="e">${esc(d.error || '')}</div>`;
-      acts = `<button class="btn primary small" data-act="retry" data-id="${d.id}">আবার চেষ্টা</button><button class="btn danger small" data-act="reject" data-id="${d.id}">বাদ</button>`;
+      when = !state.health.fb ? '<span class="when wait">ফেসবুক যুক্ত হলে যাবে</span>'
+        : `<span class="when">${slot ? slotLabel(slot) : 'সামনের কোনো সময়ে'}</span>`;
+      if (d.error) extra = `<div class="err">আগের চেষ্টায় সমস্যা: ${esc(d.error)}</div>`;
+      acts = `<button class="btn light small" data-act="unapprove" data-id="${d.id}">ফিরিয়ে আনুন</button>`;
     }
-    return `<div class="item">${pic}<div class="t"><div class="h">${head}</div><div class="m">${meta}</div>${extra}<div class="a">${acts}</div></div></div>`;
+    return `<div class="r">${pic(card)}<div class="t">${when}<div class="h">${esc(d.headline)}</div>${extra}</div><div class="acts">${acts}</div></div>`;
   }
 
-  $('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.tab; render(); };
-  $('list').onclick = async e => {
-    const b = e.target.closest('button');
+  function doneRow(d) {
+    const link = d.fb_post_id ? `<a class="btn light small" href="https://www.facebook.com/${esc(d.fb_post_id)}" target="_blank" rel="noopener">ফেসবুকে দেখুন</a>` : '';
+    return `<div class="r">${pic(newsImg(d))}<div class="t"><span class="when">${ago(d.posted_at)}</span><div class="h">${esc(d.headline)}</div></div><div class="acts">${link}</div></div>`;
+  }
+
+  /* তালিকার বোতাম */
+  const ASK = { reject: 'এই নিউজটা বাদ দেবেন?', unapprove: 'অনুমোদন তুলে নিয়ে আবার ধাপ ২-এ ফিরিয়ে আনবেন? (লেখা বা ছবি ঠিক করার জন্য)' };
+  const DONE_MSG = { reject: 'বাদ দেওয়া হলো', unapprove: 'ধাপ ২-এ ফিরিয়ে আনা হলো', retry: 'আবার চেষ্টা হচ্ছে' };
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('#home [data-act], #home [data-open]');
     if (!b) return;
     if (b.dataset.open) return openEditor(state.drafts.find(d => d.id === b.dataset.open));
     const { act, id } = b.dataset;
-    if (!act) return;
-    if (act === 'reject' && !confirm('এটা বাদ দেবেন?')) return;
+    if (ASK[act] && !confirm(ASK[act])) return;
     b.disabled = true;
-    try { await post(`/api/drafts/${id}/${act}`); await refresh(); }
+    try { await post(`/api/drafts/${id}/${act}`); toast(DONE_MSG[act]); await refresh(); }
     catch (err) { alert(err.message); b.disabled = false; }
-  };
+  });
 
-  /* ── লিংক যোগ, তারপর একটা একটা করে লেখা ── */
+  /* ── ধাপ ১: লিংক যোগ, তারপর একটা একটা করে লেখা ── */
   $('addLinks').onclick = async () => {
     const text = $('links').value.trim();
-    if (!text) return say($('addMsg'), 'লিংক দিন', 'err');
+    if (!text) return say($('addMsg'), 'আগে নিউজের লিংক দিন', 'err');
     $('addLinks').disabled = true;
     try {
       const r = await post('/api/links', { text });
       $('links').value = '';
-      say($('addMsg'), `${BN(r.added.length)}টা যোগ হলো${r.skipped.length ? `, ${BN(r.skipped.length)}টা আগেই ছিল` : ''} — লিখছে…`, 'ok');
-      tab = r.added.length ? 'working' : tab;
+      const parts = [];
+      if (r.added.length) parts.push(`${BN(r.added.length)}টা কার্ড তৈরি হচ্ছে — নিচে দেখুন`);
+      if (r.skipped.length) parts.push(`${BN(r.skipped.length)}টা লিংক আগেই দেওয়া হয়েছিল`);
+      say($('addMsg'), parts.join('। '), r.added.length ? 'ok' : 'err');
       await refresh();
     } catch (err) { say($('addMsg'), err.message, 'err'); }
     $('addLinks').disabled = false;
@@ -145,22 +186,53 @@
     try {
       for (;;) {
         const { result } = await post('/api/process');
-        if (!result) break;
         state = await call('/api/state');
-        if (tab === 'working' && !state.drafts.some(d => d.status === 'new' || d.status === 'working')) tab = 'ready';
-        render();
+        if (!$('home').hidden) render();
+        if (!result) break;
       }
     } catch (err) { console.warn(err); }
     processing = false;
   }
 
-  /* ── সময়সূচি ── */
-  $('saveSlots').onclick = async () => {
+  /* ── সেটিংস ── */
+  function renderSettings() {
+    const slots = state.slots || [];
+    $('slotList').innerHTML = slots.map(s => `<span class="slot">${timeLabel(s)}<button data-del="${s}" title="সরান">×</button></span>`).join('')
+      || '<span class="hint">কোনো সময় নেই — নিচে যোগ করুন</span>';
+    $('slotCount').textContent = `দিনে মোট ${BN(slots.length)}টা পোস্ট`;
+    const h = state.health || {};
+    $('sAi').textContent = h.ai ? '✅ চালু' : '⚠️ key নেই';
+    $('sAi').className = h.ai ? 'ok' : 'no';
+    $('sFb').textContent = h.fb ? '✅ যুক্ত' : '⚠️ যুক্ত নয়';
+    $('sFb').className = h.fb ? 'ok' : 'no';
+    $('fbHelp').textContent = h.fb ? '' : 'পেজ যুক্ত করতে পেজের আইডি আর একটা স্থায়ী টোকেন লাগবে — Claude ধাপে ধাপে করে দেবে।';
+  }
+  async function saveSlots(list, msg) {
     try {
-      const r = await call('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slots: $('slots').value }) });
-      say($('slotsMsg'), `সংরক্ষণ হয়েছে — দিনে ${BN(r.slots.length)}টা`, 'ok');
-      await refresh();
+      const r = await call('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slots: list.join(',') }) });
+      state.slots = r.slots;
+      renderSettings();
+      toast(msg);
+      refresh().catch(() => {});
     } catch (err) { say($('slotsMsg'), err.message, 'err'); }
+  }
+  $('slotList').onclick = e => {
+    const s = e.target.closest('[data-del]')?.dataset.del;
+    if (!s) return;
+    if (state.slots.length <= 1) return say($('slotsMsg'), 'অন্তত একটা সময় রাখতে হবে', 'err');
+    saveSlots(state.slots.filter(x => x !== s), `${timeLabel(s)} সরানো হলো`);
+  };
+  $('addSlot').onclick = () => {
+    const v = $('newSlot').value;
+    if (!v) return say($('slotsMsg'), 'আগে সময় বাছুন', 'err');
+    say($('slotsMsg'), '');
+    if (state.slots.includes(v)) return say($('slotsMsg'), 'এই সময়টা আগেই আছে', 'err');
+    $('newSlot').value = '';
+    saveSlots([...state.slots, v], `${timeLabel(v)} যোগ হলো`);
+  };
+  $('resetSlots').onclick = () => {
+    if (!confirm('পোস্টের সময় আবার শুরুর মতো (সকাল ৮টা থেকে রাত ১০টা, প্রতি ঘণ্টায়) করে দেবেন?')) return;
+    saveSlots(Array.from({ length: 15 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`), 'শুরুর সময়সূচি ফিরিয়ে আনা হলো');
   };
 
   /* ── কার্ড দেখা, ঠিক করা, অনুমোদন ── */
@@ -175,10 +247,12 @@
     for (const [k, id] of Object.entries(F)) $(id).value = d[k] || '';
     $('srcLink').href = d.url;
     say($('editMsg'), '');
+    $('useNewsPhoto').hidden = !d.image_url;
     $('editor').hidden = false;
+    $('editor').scrollTop = 0;
     document.body.style.overflow = 'hidden';
-    photo = d.image_url ? await Card.loadImg(`/api/img?u=${encodeURIComponent(d.image_url)}`) : null;
-    if (d.image_url && !photo) say($('editMsg'), 'নিউজের ছবিটা আনা যায়নি — "নিজের ছবি দিন" চাপুন', 'err');
+    photo = d.image_url ? await Card.loadImg(newsImg(d)) : null;
+    if (d.image_url && !photo) say($('editMsg'), 'নিউজের ছবিটা আনা যায়নি — "ছবি বদলান" চেপে নিজের ছবি দিন', 'err');
     await Card.drawCard($('canvas'), fields(), photo);
   }
   function closeEditor() { $('editor').hidden = true; document.body.style.overflow = ''; editing = null; }
@@ -186,8 +260,7 @@
   for (const id of Object.values(F)) if (id !== 'fCaption') $(id).addEventListener('input', redraw);
 
   $('useNewsPhoto').onclick = async () => {
-    if (!editing?.image_url) return say($('editMsg'), 'এই নিউজে কোনো ছবি পাওয়া যায়নি', 'err');
-    photo = await Card.loadImg(`/api/img?u=${encodeURIComponent(editing.image_url)}`);
+    photo = await Card.loadImg(newsImg(editing));
     if (!photo) say($('editMsg'), 'নিউজের ছবিটা আনা যায়নি', 'err');
     redraw();
   };
@@ -200,7 +273,6 @@
     r.readAsDataURL(file);
     e.target.value = '';
   };
-
   $('download').onclick = async () => {
     await Card.drawCard($('canvas'), fields(), photo);
     const blob = await Card.cardJpeg($('canvas'));
@@ -213,7 +285,7 @@
     const f = fields();
     if (!f.headline || !f.body) return say($('editMsg'), 'হেডলাইন আর বিস্তারিত লাগবে', 'err');
     $('approve').disabled = true;
-    say($('editMsg'), 'কার্ড তৈরি হচ্ছে…');
+    say($('editMsg'), 'অনুমোদন হচ্ছে…');
     try {
       await call(`/api/drafts/${editing.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
       await Card.drawCard($('canvas'), f, photo);
@@ -222,27 +294,25 @@
       form.append('caption', f.caption);
       await call(`/api/drafts/${editing.id}/approve`, { method: 'POST', body: form });
       closeEditor();
+      toast('অনুমোদন হয়েছে — ধাপ ৩-এ পোস্টের অপেক্ষায়');
       await refresh();
     } catch (err) { say($('editMsg'), err.message, 'err'); }
     $('approve').disabled = false;
   };
   $('rewrite').onclick = async () => {
     if (!confirm('AI দিয়ে আবার লেখাবেন? এখনকার লেখা বদলে যাবে।')) return;
-    try { await post(`/api/drafts/${editing.id}/retry`); closeEditor(); tab = 'working'; await refresh(); }
+    try { await post(`/api/drafts/${editing.id}/retry`); closeEditor(); toast('আবার লেখা হচ্ছে'); await refresh(); }
     catch (err) { say($('editMsg'), err.message, 'err'); }
   };
   $('reject').onclick = async () => {
-    if (!confirm('এটা বাদ দেবেন?')) return;
-    try { await post(`/api/drafts/${editing.id}/reject`); closeEditor(); await refresh(); }
+    if (!confirm('এই নিউজটা বাদ দেবেন?')) return;
+    try { await post(`/api/drafts/${editing.id}/reject`); closeEditor(); toast('বাদ দেওয়া হলো'); await refresh(); }
     catch (err) { say($('editMsg'), err.message, 'err'); }
   };
 
   /* ── শুরু ── */
-  async function start() {
-    $('app').hidden = false;
-    await refresh();
-  }
-  setInterval(() => { if (!document.hidden && !$('app').hidden && $('editor').hidden) refresh().catch(() => {}); }, 30000);
-  call('/api/state').then(s => { state = s; $('app').hidden = false; render(); if (s.drafts.some(d => d.status === 'new' || d.status === 'working')) runQueue(); })
+  setInterval(() => { if (!document.hidden && !$('home').hidden && $('editor').hidden) refresh().catch(() => {}); }, 20000);
+  call('/api/state')
+    .then(s => { state = s; show('home'); render(); if (s.drafts.some(d => d.status === 'new' || d.status === 'working')) runQueue(); })
     .catch(() => showLogin());
 })();

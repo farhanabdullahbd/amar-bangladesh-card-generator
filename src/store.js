@@ -10,7 +10,8 @@ import { DEFAULT_SLOTS } from './util.js';
 
 const COLS = 'id, url, status, headline, body, category, source, date_label, caption, image_url, error, attempts, created_at, approved_at, posted_at, fb_post_id';
 const MAX_CARD = 1_900_000;                 // SQLite-এর এক ঘরে ২ MB পর্যন্ত
-const STUCK_MS = 3 * 60 * 1000;             // "লিখছে" অবস্থায় ৩ মিনিটের বেশি আটকে থাকলে আবার ধরা হয়
+const STUCK_MS = 150 * 1000;                // "লিখছে" অবস্থায় আড়াই মিনিটের বেশি থাকলে কাজটা মাঝপথে থেমেছে ধরা হয়
+const MAX_CLAIMS = 2;                       // দুবার থামলে আর নয় — কারণসহ "সমস্যা"-তে
 const DAY = 86400000;
 
 export class NewsStore extends DurableObject {
@@ -27,6 +28,9 @@ export class NewsStore extends DurableObject {
       CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, jpeg BLOB NOT NULL, created_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
     `);
+    /* v2 (৮ অক্টোবর): কতবার লেখা শুরু হয়েছে — মাঝপথে থেমে বারবার আটকে থাকা ঠেকাতে */
+    const cols = this.sql.exec('PRAGMA table_info(drafts)').toArray().map(c => c.name);
+    if (!cols.includes('claims')) this.sql.exec('ALTER TABLE drafts ADD COLUMN claims INTEGER NOT NULL DEFAULT 0');
   }
 
   _get(id) { return this.sql.exec(`SELECT ${COLS} FROM drafts WHERE id = ?`, id).toArray()[0] || null; }
@@ -54,12 +58,19 @@ export class NewsStore extends DurableObject {
 
   /* ── পরের লেখার কাজ নেওয়া (একবারে একটাই, একজনই) ── */
   claimNext(now = Date.now()) {
-    const d = this.sql.exec(
-      "SELECT id, url FROM drafts WHERE status = 'new' OR (status = 'working' AND claim_at < ?) ORDER BY created_at LIMIT 1",
-      now - STUCK_MS).toArray()[0];
-    if (!d) return null;
-    this.sql.exec("UPDATE drafts SET status = 'working', claim_at = ? WHERE id = ?", now, d.id);
-    return d;
+    for (;;) {
+      const d = this.sql.exec(
+        "SELECT id, url, status, claims FROM drafts WHERE status = 'new' OR (status = 'working' AND claim_at < ?) ORDER BY created_at LIMIT 1",
+        now - STUCK_MS).toArray()[0];
+      if (!d) return null;
+      if (d.status === 'working' && d.claims >= MAX_CLAIMS) {
+        this.sql.exec("UPDATE drafts SET status = 'failed', attempts = attempts + 1, error = ? WHERE id = ?",
+          'অনেকক্ষণ চেষ্টা করেও লেখা যায়নি — "আবার চেষ্টা" চাপুন; না হলে অন্য সাইটের লিংক দিন', d.id);
+        continue;
+      }
+      this.sql.exec("UPDATE drafts SET status = 'working', claim_at = ?, claims = claims + 1 WHERE id = ?", now, d.id);
+      return { id: d.id, url: d.url };
+    }
   }
   saveWritten(id, f) {
     this.sql.exec(`UPDATE drafts SET status = 'ready', headline = ?, body = ?, category = ?, source = ?, date_label = ?,
@@ -103,7 +114,7 @@ export class NewsStore extends DurableObject {
     return this._get(id);
   }
   reject(id) {
-    this._need(id, 'new', 'ready', 'failed', 'approved', 'post_failed');
+    this._need(id, 'new', 'working', 'ready', 'failed', 'approved', 'post_failed');
     this.sql.exec('DELETE FROM cards WHERE id = ?', id);
     this.sql.exec("UPDATE drafts SET status = 'rejected' WHERE id = ?", id);
     return { id, status: 'rejected' };
@@ -112,7 +123,7 @@ export class NewsStore extends DurableObject {
   retry(id) {
     const d = this._need(id, 'failed', 'ready', 'post_failed');
     if (d.status === 'post_failed') this.sql.exec("UPDATE drafts SET status = 'approved', attempts = 0, error = NULL WHERE id = ?", id);
-    else this.sql.exec("UPDATE drafts SET status = 'new', error = NULL WHERE id = ?", id);
+    else this.sql.exec("UPDATE drafts SET status = 'new', error = NULL, claims = 0 WHERE id = ?", id);
     return this._get(id);
   }
   card(id) {

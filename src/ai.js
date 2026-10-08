@@ -24,6 +24,7 @@ export async function writeCard(article, url, env) {
   if (!env.DEEPSEEK_API_KEY) throw new Error('DeepSeek-এর key বসানো নেই (Cloudflare-এর গোপন সেটিংসে DEEPSEEK_API_KEY)');
   const res = await fetch(`${env.DEEPSEEK_BASE || 'https://api.deepseek.com'}/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(Number(env.AI_TIMEOUT_MS) || 90000),
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
       model: env.DEEPSEEK_MODEL || 'deepseek-flash',
@@ -35,6 +36,8 @@ export async function writeCard(article, url, env) {
         { role: 'user', content: `নিউজের লিংক: ${url}\nসাইট: ${article.siteName || ''}\nশিরোনাম: ${article.title || ''}\n\nনিউজের লেখা:\n${article.text}` },
       ],
     }),
+  }).catch(e => {
+    throw new Error(/timeout|abort/i.test(`${e?.name} ${e?.message}`) ? 'DeepSeek সময়মতো উত্তর দেয়নি — আবার চেষ্টা করুন' : `DeepSeek-এ পৌঁছানো যায়নি: ${e.message}`);
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 402 || /insufficient/i.test(data?.error?.message || '')) throw new Error('DeepSeek-এ ব্যালান্স নেই — রিচার্জ করতে হবে');

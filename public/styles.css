@@ -1,76 +1,143 @@
-/* আমার বাংলাদেশ — নিউজ কার্ড অটোমেশন */
+/* আমার বাংলাদেশ — নিউজ কার্ড (হালকা, গোছানো, ফোনে আগে) */
 :root {
-  --bg: #161616; --panel: #212121; --line: #333; --text: #f2f2f2; --muted: #a3a3a3;
-  --red: #A8003D; --red2: #CA004A; --ok: #3fb96b; --warn: #e0a030; --bad: #ff6b6b;
+  --bg: #F5F2EF; --panel: #FFFFFF; --line: #E6E0DA; --text: #1E1B19; --muted: #6F6862;
+  --red: #A8003D; --red2: #C4004A; --red-soft: #FBEAF0;
+  --ok: #1E8A4C; --ok-soft: #E7F5EC; --warn: #9A6100; --warn-soft: #FFF4DE; --bad: #C0262D; --bad-soft: #FDECEC;
+  --r: 14px; --shadow: 0 1px 2px rgba(30,27,25,.06), 0 4px 14px rgba(30,27,25,.05);
 }
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Hind Siliguri', 'Tiro Bangla', sans-serif; font-size: 16px; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Hind Siliguri', sans-serif; font-size: 16px; line-height: 1.5; }
 [hidden] { display: none !important; }
-h1 { margin: 0; font-size: 22px; font-family: 'Tiro Bangla', serif; }
-a { color: #ff8fb5; }
-.muted { color: var(--muted); font-weight: 400; }
-.small { font-size: 13px; }
-.msg { font-size: 14px; color: var(--muted); }
+h1, h2 { margin: 0; line-height: 1.3; }
+h2 { font-size: 18px; font-weight: 700; }
+a { color: var(--red); }
+.hint { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
+.msg { font-size: 14px; margin: 8px 0 0; color: var(--muted); min-height: 0; }
+.msg:empty { display: none; }
 .msg.err { color: var(--bad); }
 .msg.ok { color: var(--ok); }
 
-main { max-width: 900px; margin: 0 auto; padding: 16px; }
-.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-.chip { font-size: 12px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
-.chip.ok { color: var(--ok); border-color: rgba(63,185,107,.4); }
-.chip.bad { color: var(--warn); border-color: rgba(224,160,48,.4); }
-
-.box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
-label { display: block; font-size: 14px; color: #ddd; margin-bottom: 10px; }
-input, textarea {
-  width: 100%; margin-top: 6px; background: #2a2a2a; color: var(--text); border: 1px solid #3a3a3a; border-radius: 10px;
-  padding: 10px 12px; font: inherit; font-size: 16px; outline: none;
-}
-textarea { resize: vertical; line-height: 1.5; }
-input:focus, textarea:focus { border-color: var(--red2); }
-.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-
-.btn { border: 1px solid transparent; border-radius: 10px; padding: 10px 16px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--text); background: #2c2c2c; }
-.btn:disabled { opacity: .5; cursor: default; }
-.btn.primary { background: var(--red); }
+/* বোতাম */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid transparent; border-radius: 11px;
+  padding: 11px 16px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; color: var(--text); background: #EFEAE5; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.primary { background: var(--red); color: #fff; }
 .btn.primary:hover:not(:disabled) { background: var(--red2); }
-.btn.ghost { background: transparent; border-color: #444; }
-.btn.danger { background: transparent; border-color: rgba(255,107,107,.5); color: var(--bad); }
-.btn.small { padding: 6px 11px; font-size: 13px; }
+.btn.approve { background: var(--ok); color: #fff; font-size: 17px; padding: 14px; }
+.btn.light { background: var(--panel); border-color: var(--line); }
+.btn.small { padding: 7px 12px; font-size: 14px; }
+.btn.wide { width: 100%; }
+.btn.danger-outline { background: transparent; border-color: rgba(192,38,45,.4); color: var(--bad); }
+.btn.text-danger { background: transparent; color: var(--bad); font-weight: 500; padding: 8px 4px; }
 
-.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; scrollbar-width: none; }
-.tabs button { flex: 0 0 auto; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 99px; padding: 7px 13px; font: inherit; font-size: 14px; cursor: pointer; }
-.tabs button.on { background: var(--red); border-color: var(--red); color: #fff; }
-.tabs b { font-weight: 700; margin-left: 2px; }
+input, textarea { width: 100%; background: #fff; color: var(--text); border: 1.5px solid var(--line); border-radius: 11px;
+  padding: 11px 13px; font: inherit; font-size: 16px; outline: none; }
+textarea { resize: vertical; }
+input:focus, textarea:focus { border-color: var(--red); }
+label { display: block; font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 12px; }
+label input, label textarea { margin-top: 5px; color: var(--text); font-weight: 400; }
 
-.list { display: flex; flex-direction: column; gap: 10px; }
-.item { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; align-items: flex-start; }
-.item img, .item .noimg { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #2a2a2a; }
-.item .noimg { display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px; }
-.item .t { flex: 1; min-width: 0; }
-.item .h { font-weight: 600; line-height: 1.4; word-break: break-word; }
-.item .m { font-size: 13px; color: var(--muted); margin-top: 3px; word-break: break-all; }
-.item .e { font-size: 13px; color: var(--bad); margin-top: 3px; }
-.item .w { font-size: 13px; color: var(--warn); margin-top: 3px; }
-.item .a { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.empty { color: var(--muted); text-align: center; padding: 30px 10px; }
+/* উপরের পট্টি */
+.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 16px; background: var(--red); color: #fff; }
+.brand { font-family: 'Tiro Bangla', serif; font-size: 20px; }
+.brand span { font-family: 'Hind Siliguri', sans-serif; font-size: 14px; opacity: .85; margin-left: 4px; }
+.bar .btn.light { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); color: #fff; padding: 7px 12px; font-size: 14px; }
 
+.wrap { max-width: 760px; margin: 0 auto; padding: 16px 16px 60px; }
+.page-title { font-size: 24px; margin: 14px 0 12px; }
+.panel { background: var(--panel); border-radius: var(--r); padding: 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+.panel h2 { margin-bottom: 4px; }
+
+/* ধাপ */
+.step { background: var(--panel); border-radius: var(--r); padding: 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+.step-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.num { flex: 0 0 32px; height: 32px; border-radius: 50%; background: var(--red-soft); color: var(--red); font-weight: 700;
+  display: flex; align-items: center; justify-content: center; font-size: 17px; }
+.step textarea { margin-bottom: 10px; }
+.count { display: inline-block; min-width: 24px; padding: 0 7px; margin-left: 4px; border-radius: 99px; background: var(--red); color: #fff;
+  font-size: 13px; text-align: center; vertical-align: 2px; }
+.count:empty { display: none; }
+.done summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.done summary::-webkit-details-marker { display: none; }
+.done summary h2::before { content: '▸ '; color: var(--muted); }
+.done[open] summary h2::before { content: '▾ '; }
+.done .rows { margin-top: 12px; }
+.empty { color: var(--muted); font-size: 14px; text-align: center; padding: 14px 8px; background: #FAF8F6; border-radius: 10px; }
+
+/* সতর্কবার্তা */
+.note { border-radius: 12px; padding: 11px 14px; font-size: 14px; margin-bottom: 14px; display: flex; gap: 10px; align-items: flex-start; }
+.note.warn { background: var(--warn-soft); color: var(--warn); }
+.note.bad { background: var(--bad-soft); color: var(--bad); }
+
+/* অনুমোদনের কার্ড */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.c { border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+.c .pic { aspect-ratio: 4 / 3; background: #EDE8E3; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; overflow: hidden; }
+.c .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.c .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.c .h { font-weight: 600; line-height: 1.4; word-break: break-word; }
+.c .m { font-size: 13px; color: var(--muted); word-break: break-all; }
+.c .actions { margin-top: auto; display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
+.c .actions .btn { flex: 1; padding: 9px 10px; font-size: 14px; }
+.c.working { border-style: dashed; }
+.c.failed { border-color: rgba(192,38,45,.45); }
+.c .err { font-size: 13px; color: var(--bad); }
+.spin { width: 22px; height: 22px; border: 3px solid #D9D2CB; border-top-color: var(--red); border-radius: 50%; animation: s 0.9s linear infinite; }
+@keyframes s { to { transform: rotate(360deg); } }
+
+/* লাইনের সারি */
+.rows { display: flex; flex-direction: column; gap: 8px; }
+.r { display: flex; align-items: center; gap: 10px; border: 1.5px solid var(--line); border-radius: 12px; padding: 8px; background: #fff; }
+.r img, .r .noimg { width: 52px; height: 65px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #EDE8E3; }
+.r .t { flex: 1; min-width: 0; }
+.r .when { display: inline-block; font-size: 13px; font-weight: 600; color: var(--ok); background: var(--ok-soft); border-radius: 99px; padding: 1px 9px; margin-bottom: 3px; }
+.r .when.wait { color: var(--warn); background: var(--warn-soft); }
+.r .when.bad { color: var(--bad); background: var(--bad-soft); }
+.r .h { font-size: 14px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.r .err { font-size: 13px; color: var(--bad); }
+.r .acts { display: flex; flex-direction: column; gap: 4px; }
+
+/* সেটিংস */
+.slots { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; }
+.slot { display: inline-flex; align-items: center; gap: 4px; background: var(--red-soft); color: var(--red); border-radius: 99px; padding: 5px 6px 5px 12px; font-weight: 600; font-size: 14px; }
+.slot button { border: 0; background: transparent; color: var(--red); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 6px; }
+.add-time { display: flex; gap: 8px; margin: 12px 0 10px; }
+.add-time input { flex: 1; }
+.status-row { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.status-row:last-of-type { border-bottom: 0; }
+.status-row b.ok { color: var(--ok); }
+.status-row b.no { color: var(--warn); }
+.how { margin: 8px 0 0; padding-left: 22px; color: var(--muted); font-size: 15px; }
+.how li { margin-bottom: 6px; }
+
+/* লগইন */
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
-.login .box { width: 100%; max-width: 360px; }
-.login h1 { margin-bottom: 4px; }
-.login .btn { width: 100%; margin-top: 6px; }
+.login .panel { width: 100%; max-width: 360px; text-align: center; }
+.brand-big { font-family: 'Tiro Bangla', serif; font-size: 28px; color: var(--red); }
+.login input { margin: 16px 0 10px; text-align: center; }
 
-.editor { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 10; overflow-y: auto; }
-.editor-in { max-width: 1100px; margin: 0 auto; padding: 12px; }
-.editor-head { display: flex; justify-content: space-between; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; position: sticky; top: 8px; z-index: 2; }
-.editor-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-.preview canvas { width: 100%; height: auto; border-radius: 10px; display: block; background: #222; }
-.fields { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+/* কার্ড দেখার পাতা */
+.editor { position: fixed; inset: 0; z-index: 20; background: var(--bg); overflow-y: auto; }
+.editor-bar { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+  padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.editor-bar b { text-align: center; }
+.editor-body { max-width: 1060px; margin: 0 auto; padding: 14px 16px 40px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.preview canvas { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: var(--shadow); background: #ddd; }
+.side { background: var(--panel); border-radius: var(--r); padding: 16px; box-shadow: var(--shadow); }
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.tools .btn { font-size: 14px; padding: 10px 8px; }
+.more { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.more summary { cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 600; }
+.more a { display: inline-block; margin-top: 12px; font-size: 14px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.photo-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
-.actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.side .text-danger { margin-top: 14px; }
 @media (max-width: 760px) {
-  .editor-grid { grid-template-columns: 1fr; }
-  .preview { max-width: 420px; margin: 0 auto; width: 100%; }
+  .editor-body { grid-template-columns: 1fr; }
+  .preview { max-width: 440px; margin: 0 auto; width: 100%; }
+  .cards { grid-template-columns: 1fr 1fr; gap: 10px; }
 }
+@media (max-width: 380px) { .cards { grid-template-columns: 1fr; } }
+
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; background: #1E1B19; color: #fff;
+  padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.2); max-width: calc(100% - 32px); }

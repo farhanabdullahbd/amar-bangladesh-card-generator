@@ -51,3 +51,13 @@ test('AI-এর উত্তর — বাড়তি লেখা, ```json, �
 test('ফেসবুকের লেখা — আগের নকশার মতো', () => {
   assert.equal(buildCaption({ headline: 'হ', body: 'ব', url: 'https://a.b/c' }), 'হ\n\nব\n\n🔗 https://a.b/c');
 });
+
+test('নিউজ পাতার og: ট্যাগ — property/name, এক বা দুই উদ্ধৃতি, &amp;', async () => {
+  const { parseMeta } = await import('../src/article.js');
+  const m = parseMeta(`<meta content="https://x.com/a.jpg?w=1&amp;h=2" property="og:image"><meta name='description' content='বিবরণ'>
+    <meta property="og:site_name" content="প্রথম আলো"><meta property="og:title" content="শিরোনাম &quot;উদ্ধৃতি&quot;">`);
+  assert.equal(m.image, 'https://x.com/a.jpg?w=1&h=2');
+  assert.equal(m.siteName, 'প্রথম আলো');
+  assert.equal(m.title, 'শিরোনাম "উদ্ধৃতি"');
+  assert.equal(m.description, 'বিবরণ');
+});
