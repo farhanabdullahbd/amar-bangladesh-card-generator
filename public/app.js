@@ -20,6 +20,8 @@
   }
   const post = (path, body) => call(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   const say = (el, text, kind = '') => { el.textContent = text; el.className = 'msg ' + kind; };
+  const cleanCap = t => String(t || '').replace(/🔗\s*/gu, '').replace(/(?:https?:\/\/|www\.)\S+/gi, '')
+    .split('\n').map(l => l.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
   let toastTimer = null;
   const toast = text => { const t = $('toast'); t.textContent = text; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3000); };
 
@@ -88,7 +90,8 @@
     /* সতর্কবার্তা — শুধু দরকার হলে */
     const notes = [];
     if (!h.ai) notes.push('<div class="note bad">⚠️ লেখার AI চালু নেই — DeepSeek-এর key বসানো হয়নি। সেটিংসে দেখুন।</div>');
-    if (!h.fb) notes.push('<div class="note warn">ℹ️ ফেসবুক পেজ এখনো যুক্ত হয়নি। অনুমোদিত কার্ড জমা থাকবে; পেজ যুক্ত হলে সময়মতো পোস্ট হবে।</div>');
+    if (!h.fbToken) notes.push('<div class="note warn">ℹ️ ফেসবুক এখনো যুক্ত হয়নি। অনুমোদিত কার্ড জমা থাকবে; যুক্ত হলে সময়মতো পোস্ট হবে।</div>');
+    else if (!h.fb) notes.push('<div class="note warn">ℹ️ কোন ফেসবুক পেজে পোস্ট হবে, এখনো বাছা হয়নি — ⚙️ সেটিংসে পেজ বাছুন।</div>');
     $('banner').innerHTML = notes.join('');
 
     /* ধাপ ২ — লেখা হচ্ছে, অনুমোদন বাকি, সমস্যা */
@@ -149,8 +152,11 @@
   }
 
   function doneRow(d) {
-    const link = d.fb_post_id ? `<a class="btn light small" href="https://www.facebook.com/${esc(d.fb_post_id)}" target="_blank" rel="noopener">ফেসবুকে দেখুন</a>` : '';
-    return `<div class="r">${pic(newsImg(d))}<div class="t"><span class="when">${ago(d.posted_at)}</span><div class="h">${esc(d.headline)}</div></div><div class="acts">${link}</div></div>`;
+    let posts = {};
+    try { posts = JSON.parse(d.fb_posts || '{}'); } catch { /* পুরনো পোস্টে নেই */ }
+    const list = Object.values(posts).length ? Object.values(posts) : d.fb_post_id ? [{ post: d.fb_post_id, name: 'ফেসবুকে দেখুন' }] : [];
+    const links = list.map(p => `<a class="btn light small" href="https://www.facebook.com/${esc(p.post)}" target="_blank" rel="noopener">${esc(p.name)} ↗</a>`).join('');
+    return `<div class="r">${pic(newsImg(d))}<div class="t"><span class="when">${ago(d.posted_at)}</span><div class="h">${esc(d.headline)}</div></div><div class="acts links">${links}</div></div>`;
   }
 
   /* তালিকার বোতাম */
@@ -208,9 +214,42 @@
     const h = state.health || {};
     $('sAi').textContent = h.ai ? '✅ চালু' : '⚠️ key নেই';
     $('sAi').className = h.ai ? 'ok' : 'no';
-    $('sFb').textContent = h.fb ? '✅ যুক্ত' : '⚠️ যুক্ত নয়';
+    $('sFb').textContent = h.fb ? `✅ ${BN(h.fbPages.length)}টা পেজে` : h.fbToken ? '⚠️ পেজ বাছা হয়নি' : '⚠️ যুক্ত নয়';
     $('sFb').className = h.fb ? 'ok' : 'no';
-    $('fbHelp').textContent = h.fb ? '' : `Cloudflare-এ পাওয়া যাচ্ছে না: ${(h.fbMissing || ['FB_PAGE_ID', 'FB_PAGE_TOKEN']).join(', ')}। Settings → Variables and Secrets-এ হুবহু এই নামে, "Secret" টিক দিয়ে বসান।`;
+    $('fbHelp').textContent = h.fbToken ? (h.fb ? h.fbPages.map(p => p.name).join(', ') : 'উপরে পেজ বাছুন।')
+      : 'Cloudflare-এ ফেসবুকের টোকেন বসানো নেই (Secret: FB_USER_TOKEN)।';
+    loadFbPages();
+  }
+
+  /* ফেসবুক পেজ বাছা — মালিক যে পেজগুলো চালান, তার মধ্যে থেকে */
+  async function loadFbPages() {
+    const box = $('fbPageList');
+    if (!state.health?.fbToken) { box.innerHTML = '<span class="hint">ফেসবুক যুক্ত হলে এখানে আপনার পেজের তালিকা আসবে।</span>'; $('saveFbPages').hidden = true; return; }
+    box.innerHTML = '<span class="hint">পেজের তালিকা আনছি…</span>';
+    try {
+      const { pages } = await call('/api/fb/pages');
+      box.innerHTML = pages.map(p => `<label class="page-opt${p.selected ? ' on' : ''}"><input type="checkbox" value="${esc(p.id)}"${p.selected ? ' checked' : ''}><span>${esc(p.name)}<small>${esc(p.category)}</small></span></label>`).join('')
+        || '<span class="hint">এই টোকেন দিয়ে কোনো পেজ পাওয়া যায়নি।</span>';
+      $('saveFbPages').hidden = !pages.length;
+    } catch (err) { box.innerHTML = ''; say($('fbPagesMsg'), err.message, 'err'); }
+  }
+  $('fbPageList').onchange = e => { const l = e.target.closest('.page-opt'); if (l) l.classList.toggle('on', e.target.checked); };
+  $('saveFbPages').onclick = async () => {
+    const ids = [...$('fbPageList').querySelectorAll('input:checked')].map(i => i.value);
+    if (!ids.length && !confirm('কোনো পেজ বাছা নেই — তাহলে কোথাও পোস্ট হবে না। ঠিক আছে?')) return;
+    try {
+      const r = await call('/api/fb/pages', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+      state.health.fbPages = r.pages;
+      state.health.fb = r.pages.length > 0;
+      say($('fbPagesMsg'), r.pages.length ? `সংরক্ষণ হয়েছে — এখন থেকে পোস্ট যাবে: ${r.pages.map(p => p.name).join(', ')}` : 'সংরক্ষণ হয়েছে — কোনো পেজে পোস্ট হবে না', 'ok');
+      renderSettingsStatus();
+    } catch (err) { say($('fbPagesMsg'), err.message, 'err'); }
+  };
+  function renderSettingsStatus() {
+    const h = state.health || {};
+    $('sFb').textContent = h.fb ? `✅ ${BN(h.fbPages.length)}টা পেজে` : h.fbToken ? '⚠️ পেজ বাছা হয়নি' : '⚠️ যুক্ত নয়';
+    $('sFb').className = h.fb ? 'ok' : 'no';
+    $('fbHelp').textContent = h.fb ? h.fbPages.map(p => p.name).join(', ') : '';
   }
   async function saveSlots(list, msg) {
     try {
@@ -250,6 +289,7 @@
     if (!d) return;
     editing = d;
     for (const [k, id] of Object.entries(F)) $(id).value = d[k] || '';
+    $('fCaption').value = cleanCap(d.caption);
     $('srcLink').href = d.url;
     say($('editMsg'), '');
     $('useNewsPhoto').hidden = !d.image_url;

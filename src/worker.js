@@ -6,8 +6,8 @@
 import { NewsStore } from './store.js';
 import { readArticle } from './article.js';
 import { writeCard } from './ai.js';
-import { fbMissing, fbReady, postPhoto } from './facebook.js';
-import { bnDateLabel, buildCaption, dueSlot, extractUrls, parseSlots, upcomingSlots } from './util.js';
+import { fbTokenSet, listPages, postPhoto } from './facebook.js';
+import { bnDateLabel, buildCaption, cleanCaption, dueSlot, extractUrls, parseSlots, upcomingSlots } from './util.js';
 
 export { NewsStore };
 
@@ -54,7 +54,7 @@ export async function processOne(env) {
     const source = ai.source || art.siteName || new URL(d.url).hostname.replace(/^www\./, '');
     await s.saveWritten(d.id, {
       ...ai, source, date_label: bnDateLabel(), image_url: art.image,
-      caption: buildCaption({ headline: ai.headline, body: ai.body, url: d.url }),
+      caption: buildCaption({ headline: ai.headline, body: ai.body }),
     });
     return { id: d.id, status: 'ready' };
   } catch (e) {
@@ -63,41 +63,55 @@ export async function processOne(env) {
   }
 }
 
+/* ── একটা কার্ড বাছা সব পেজে — যে পেজে আগেই গেছে সেখানে আবার নয়। কোনো পেজে না গেলে কারণসহ Error ── */
+async function publish(env, s, item, slotKey) {
+  const pages = await s.fbPages();
+  const done = JSON.parse(item.fb_posts || '{}');
+  const errs = [];
+  if (!item.jpeg) errs.push('কার্ডের ছবি পাওয়া যায়নি');
+  else {
+    let all = [];
+    try { all = await listPages(env); } catch (e) { errs.push(String(e.message || e)); }
+    if (!errs.length) {
+      for (const p of pages) {
+        if (done[p.id]) continue;
+        const page = all.find(x => x.id === p.id);
+        if (!page) { errs.push(`${p.name}: এই পেজে পোস্ট করার অনুমতি নেই`); continue; }
+        try { done[p.id] = { post: await postPhoto(env, page, item.jpeg, cleanCaption(item.caption)), name: page.name }; }
+        catch (e) { errs.push(`${p.name}: ${e.message || e}`); }
+      }
+    }
+  }
+  await s.setPosts(item.id, done);
+  if (errs.length) {
+    await s.markPostError(item.id, errs.join(' • '));
+    throw new Error(errs.join(' • '));
+  }
+  await s.markPosted(item.id, Object.values(done)[0]?.post || '', slotKey);
+  return done;
+}
+const fbReady = async (env, s) => fbTokenSet(env) && (await s.fbPages()).length > 0;
+
 /* ── সময় হলে পরের অনুমোদিত কার্ড পোস্ট ── */
 export async function postIfDue(env, now = Date.now()) {
-  if (!fbReady(env)) return { skipped: 'ফেসবুক যুক্ত নয়' };
   const s = store(env);
+  if (!(await fbReady(env, s))) return { skipped: 'ফেসবুক যুক্ত নয় বা পেজ বাছা হয়নি' };
   const { slots, lastSlot } = await s.settings();
   const slot = dueSlot(slots, now);
   if (!slot || slot === lastSlot) return { skipped: 'এখন পোস্টের সময় নয়' };
   const item = await s.claimForPost(null, now);
   if (!item) return { skipped: 'লাইনে কোনো অনুমোদিত কার্ড নেই' };
-  if (!item.jpeg) { await s.markPostError(item.id, 'কার্ডের ছবি পাওয়া যায়নি'); return { error: 'no card' }; }
-  try {
-    const fbId = await postPhoto(env, item.jpeg, item.caption);
-    await s.markPosted(item.id, fbId, slot, now);
-    return { posted: item.id, fbId, slot };
-  } catch (e) {
-    await s.markPostError(item.id, String(e.message || e));
-    return { error: String(e.message || e) };
-  }
+  try { return { posted: item.id, pages: await publish(env, s, item, slot), slot }; }
+  catch (e) { return { error: String(e.message || e) }; }
 }
 
 /* ── মালিকের "এখনই পোস্ট করুন" — সময়ের অপেক্ষা ছাড়া, কয়েক সেকেন্ডে। পোস্টের সময়সূচিতে হাত দেয় না ── */
 export async function postNow(env, id) {
-  if (!fbReady(env)) throw new Error('ফেসবুক পেজ যুক্ত নয়');
   const s = store(env);
+  if (!(await fbReady(env, s))) throw new Error('ফেসবুক যুক্ত নয় বা কোনো পেজ বাছা হয়নি — সেটিংস দেখুন');
   const item = await s.claimForPost(id, Date.now());
   if (!item) throw new Error('এটা এখন পোস্ট করা যায় না — পাতা রিফ্রেশ করে দেখুন');
-  if (!item.jpeg) { await s.markPostError(item.id, 'কার্ডের ছবি পাওয়া যায়নি'); throw new Error('কার্ডের ছবি পাওয়া যায়নি'); }
-  try {
-    const fbId = await postPhoto(env, item.jpeg, item.caption);
-    await s.markPosted(item.id, fbId, null);
-    return { posted: item.id, fbId };
-  } catch (e) {
-    await s.markPostError(item.id, String(e.message || e));
-    throw e;
-  }
+  return { posted: item.id, pages: await publish(env, s, item, null) };
 }
 
 /* ── নিউজের ছবি নিজের ঠিকানা দিয়ে — পাতার canvas-এ অন্য সাইটের ছবি আঁকলে JPG বানানো যায় না ── */
@@ -128,11 +142,11 @@ async function api(req, env, ctx, path) {
   if (!(await signedIn(req, env))) return fail('লগইন করুন', 401);
 
   if (path === '/api/state' && method === 'GET') {
-    const [drafts, settings] = await Promise.all([s.list(), s.settings()]);
+    const [drafts, settings, pages] = await Promise.all([s.list(), s.settings(), s.fbPages()]);
     return json({
       drafts, slots: settings.slots,
       upcoming: upcomingSlots(settings.slots, Date.now(), 40, settings.lastSlot),
-      health: { ai: !!env.DEEPSEEK_API_KEY, fb: fbReady(env), fbMissing: fbMissing(env) },
+      health: { ai: !!env.DEEPSEEK_API_KEY, fbToken: fbTokenSet(env), fbPages: pages, fb: fbTokenSet(env) && pages.length > 0 },
     });
   }
   if (path === '/api/links' && method === 'POST') {
@@ -144,6 +158,22 @@ async function api(req, env, ctx, path) {
   }
   if (path === '/api/process' && method === 'POST') return json({ result: await processOne(env) });
   if (path === '/api/img' && method === 'GET') return proxyImage(new URL(req.url).searchParams.get('u') || '');
+  /* ফেসবুক পেজ — মালিকের সব পেজের তালিকা, আর কোনগুলোতে পোস্ট হবে */
+  if (path === '/api/fb/pages' && method === 'GET') {
+    try {
+      const [all, chosen] = await Promise.all([listPages(env), s.fbPages()]);
+      return json({ pages: all.map(p => ({ id: p.id, name: p.name, category: p.category, selected: chosen.some(c => c.id === p.id) })) });
+    } catch (e) { return fail(String(e.message || e)); }
+  }
+  if (path === '/api/fb/pages' && method === 'PUT') {
+    const { ids = [] } = await req.json().catch(() => ({}));
+    try {
+      const all = await listPages(env);
+      const chosen = all.filter(p => ids.includes(p.id)).map(p => ({ id: p.id, name: p.name }));
+      if (ids.length && chosen.length !== ids.length) return fail('কোনো একটা পেজ পাওয়া যায়নি — তালিকা রিফ্রেশ করুন');
+      return json({ pages: await s.setFbPages(chosen) });
+    } catch (e) { return fail(String(e.message || e)); }
+  }
   if (path === '/api/settings' && method === 'PUT') {
     const { slots = '' } = await req.json().catch(() => ({}));
     try { return json(await s.setSlots(parseSlots(slots))); } catch (e) { return fail(e.message); }

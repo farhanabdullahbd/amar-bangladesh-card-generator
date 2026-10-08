@@ -88,7 +88,18 @@ export function parseAiJson(text) {
   throw new Error('AI-এর উত্তর বোঝা যায়নি');
 }
 
-/* ফেসবুক পোস্টের লেখা — আগের নকশার মতো: হেডলাইন, বিস্তারিত, নিউজের লিংক */
-export function buildCaption({ headline, body, url }) {
-  return [headline, body, url ? `🔗 ${url}` : ''].filter(Boolean).join('\n\n');
+/* ফেসবুক পোস্টের লেখা — হেডলাইন আর বিস্তারিত। ⚠ কোনো লিংক নয়: লিংক থাকলে ফেসবুক পোস্টের রিচ কমিয়ে দেয়
+   (মালিকের নির্দেশ, ৮ অক্টোবর ২০২৬) */
+export function buildCaption({ headline, body }) {
+  return [headline, body].filter(Boolean).join('\n\n');
+}
+
+/* পোস্টের ঠিক আগে — হাতে লেখা ক্যাপশনেও লিংক থাকলে সরে যায় */
+export function cleanCaption(text) {
+  return String(text || '')
+    .replace(/🔗\s*/gu, '')
+    .replace(/(?:https?:\/\/|www\.)\S+/gi, '')
+    .split('\n').map(l => l.trimEnd()).join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

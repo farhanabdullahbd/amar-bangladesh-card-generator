@@ -1,7 +1,7 @@
 /* ছোট নিয়মের পরীক্ষা — চালানো: npm test */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bdNow, bnDateLabel, DEFAULT_SLOTS, parseSlots, dueSlot, upcomingSlots, extractUrls, parseAiJson, buildCaption } from '../src/util.js';
+import { bdNow, bnDateLabel, DEFAULT_SLOTS, parseSlots, dueSlot, upcomingSlots, extractUrls, parseAiJson, buildCaption, cleanCaption } from '../src/util.js';
 
 /* বাংলাদেশ সময় ৮ অক্টোবর ২০২৬, দুপুর ২:১০ = UTC ০৮:১০ */
 const T = Date.UTC(2026, 9, 8, 8, 10);
@@ -48,8 +48,10 @@ test('AI-এর উত্তর — বাড়তি লেখা, ```json, �
   assert.throws(() => parseAiJson('দুঃখিত'), /বোঝা যায়নি/);
 });
 
-test('ফেসবুকের লেখা — আগের নকশার মতো', () => {
-  assert.equal(buildCaption({ headline: 'হ', body: 'ব', url: 'https://a.b/c' }), 'হ\n\nব\n\n🔗 https://a.b/c');
+test('ফেসবুকের লেখা — হেডলাইন আর বিস্তারিত, কোনো লিংক নয়', () => {
+  assert.equal(buildCaption({ headline: 'হ', body: 'ব', url: 'https://a.b/c' }), 'হ\n\nব');
+  assert.equal(cleanCaption('হেডলাইন\n\nবিস্তারিত দেখুন www.x.com/y\n\n🔗 https://a.b/c?d=1'), 'হেডলাইন\n\nবিস্তারিত দেখুন');
+  assert.equal(cleanCaption('লিংক ছাড়া লেখা'), 'লিংক ছাড়া লেখা');
 });
 
 test('নিউজ পাতার og: ট্যাগ — property/name, এক বা দুই উদ্ধৃতি, &amp;', async () => {

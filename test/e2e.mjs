@@ -26,7 +26,8 @@ const until = async (fn, ms = 30000) => { const t0 = Date.now(); for (;;) { cons
 const logos = readFileSync(resolve(root, 'public/logos.js'), 'utf8');
 const PHOTO = Buffer.from(logos.match(/MAP_LOGO_B64 = "data:image\/png;base64,([^"]+)"/)[1], 'base64');
 const seen = { deepseek: [], fb: [] };
-let deepseekBroke = true;   // দ্বিতীয় নিউজে প্রথমবার ব্যালান্স শেষ দেখাবে
+let deepseekBroke = true;
+let failPage2Once = false;   // দুই পেজের একটায় একবার ব্যর্থ — আবার চেষ্টায় শুধু সেটায় যায় কি না   // দ্বিতীয় নিউজে প্রথমবার ব্যালান্স শেষ দেখাবে
 const ARTICLE = 'ঢাকায় আজ নতুন মেট্রো লাইনের উদ্বোধন হয়েছে। প্রধান উপদেষ্টা সকাল ১০টায় উদ্বোধন করেন। প্রতিদিন ৫০ হাজার যাত্রী চলাচল করবে।';
 const HEAD = '<meta property="og:title" content="মেট্রো উদ্বোধন"><meta property="og:site_name" content="নমুনা খবর"><meta property="og:image" content="/photo.png?a=1&amp;b=2">';
 /* প্রথম আলোর মতো বড় পাতা — <head>-এর পরে ২ MB */
@@ -51,11 +52,22 @@ const mock = createServer(async (req, res) => {
     const card = { headline: 'ঢাকায় নতুন মেট্রো লাইনের উদ্বোধন, দিনে চলবে ৫০ হাজার যাত্রী', body: 'প্রধান উপদেষ্টা আজ সকাল ১০টায় নতুন মেট্রো লাইনের উদ্বোধন করেন। প্রতিদিন প্রায় ৫০ হাজার যাত্রী এই লাইনে চলাচল করতে পারবেন।', category: 'জাতীয়', source: 'নমুনা খবর' };
     return send(200, 'application/json', JSON.stringify({ choices: [{ message: { content: 'এই নিন: ' + JSON.stringify(card) } }] }));
   }
+  if (u.startsWith('/graph/v23.0/me/accounts')) {
+    if (!u.includes('access_token=utok')) return send(400, 'application/json', JSON.stringify({ error: { code: 190, message: 'bad token' } }));
+    return send(200, 'application/json', JSON.stringify({ data: [
+      { id: 'PAGE1', name: 'Amar Bangladesh', category: 'Non-profit', access_token: 'tok1' },
+      { id: 'PAGE2', name: 'Amar Bangladesh News', category: 'News', access_token: 'tok2' },
+      { id: 'PAGE3', name: 'অন্য পেজ', category: 'Shop', access_token: 'tok3' },
+    ] }));
+  }
   if (u.startsWith('/graph/') && req.method === 'POST') {
     const text = body.toString('latin1');
+    const page = u.match(/\/graph\/v23\.0\/(\w+)\/photos/)?.[1];
+    const tok = text.match(/name="access_token"\r\n\r\n(\w+)\r\n/)?.[1];
+    if (page === 'PAGE2' && failPage2Once) { failPage2Once = false; return send(400, 'application/json', JSON.stringify({ error: { code: 1, message: 'সাময়িক সমস্যা' } })); }
     const cap = body.toString('utf8').match(/name="caption"\r\n\r\n([\s\S]*?)\r\n--/);
-    seen.fb.push({ url: u, caption: cap?.[1] || '', jpeg: text.includes('\xFF\xD8\xFF'), token: /name="access_token"\r\n\r\ntok\r\n/.test(text) });
-    return send(200, 'application/json', JSON.stringify({ id: 'ph1', post_id: 'PAGE1_777' }));
+    seen.fb.push({ page, tok, caption: cap?.[1] || '', jpeg: text.includes('\xFF\xD8\xFF') });
+    return send(200, 'application/json', JSON.stringify({ id: 'ph', post_id: `${page}_${seen.fb.length}` }));
   }
   send(404, 'text/plain', 'not found');
 });
@@ -75,7 +87,7 @@ if (process.platform === 'win32') {
 /* ── Worker চালু (আসল কোড, নকল ঠিকানাগুলোর সাথে) ── */
 const vars = {
   ADMIN_PASSWORD: PASS, DEEPSEEK_API_KEY: 'test-key', DEEPSEEK_BASE: `${M}/deepseek`, JINA_BASE: `${M}/jina/`,
-  FB_GRAPH_BASE: `${M}/graph`, FB_PAGE_ID: 'PAGE1', FB_PAGE_TOKEN: 'tok', FETCH_TIMEOUT_MS: '3000',
+  FB_GRAPH_BASE: `${M}/graph`, FB_USER_TOKEN: 'utok', FETCH_TIMEOUT_MS: '3000',
 };
 const args = ['wrangler', 'dev', '--port', String(APP), '--ip', '127.0.0.1', '--test-scheduled', '--persist-to', 'test/.out/state', '--log-level', 'warn',
   ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`])];
@@ -111,7 +123,17 @@ try {
   await pg.locator('#password').fill(PASS);
   await pg.locator('#loginForm button').click();
   check('সঠিক পাসওয়ার্ডে ঢুকল, তিন ধাপের পাতা', !!(await until(async () => await pg.locator('#home').isVisible(), 10000)));
-  check('সব চালু থাকলে কোনো সতর্কবার্তা নেই', (await pg.locator('#banner').innerText()).trim() === '');
+  check('পেজ বাছা না থাকলে সতর্কবার্তা', /পেজ বাছুন/.test(await pg.locator('#banner').innerText()));
+  await pg.locator('#openSettings').click();
+  check('সেটিংসে পেজের তালিকা এল', !!(await until(async () => (await pg.locator('#fbPageList .page-opt').count()) === 3, 15000)));
+  await pg.locator('#fbPageList .page-opt:has-text("Amar Bangladesh News") input').check();
+  await pg.locator('#fbPageList .page-opt:has-text("Amar Bangladesh") >> nth=0 >> input').check();
+  await pg.locator('#saveFbPages').click();
+  check('দুটো পেজ সংরক্ষণ হলো', !!(await until(async () => /Amar Bangladesh, Amar Bangladesh News|Amar Bangladesh News, Amar Bangladesh/.test(await pg.locator('#fbPagesMsg').innerText()), 8000)), await pg.locator('#fbPagesMsg').innerText());
+  await pg.locator('#closeSettings').click();
+  await pg.reload();
+  await until(async () => await pg.locator('#home').isVisible(), 10000);
+  check('পেজ বাছার পরে কোনো সতর্কবার্তা নেই', (await pg.locator('#banner').innerText()).trim() === '');
 
   /* লিংক — সাধারণ, ব্যালান্স-শেষ, আটকে থাকা সাইট, ২ MB পাতা */
   await pg.locator('#links').fill(`${M}/news/1\n${M}/news/2\n${M}/slow/3\n${M}/news/big`);
@@ -146,8 +168,8 @@ try {
   check('বাড়তি ঘরগুলো শুরুতে লুকানো', !(await pg.locator('#fCaption').isVisible()));
   await pg.locator('#fHeadline').fill('ঢাকায় নতুন মেট্রো লাইন চালু, প্রতিদিন যাবেন ৫০ হাজার যাত্রী');
   await pg.locator('.more summary').click();
-  check('ফেসবুকের লেখায় নিউজের লিংক', (await pg.locator('#fCaption').inputValue()).includes(`🔗 ${M}/news/`));
-  await pg.locator('#fCaption').fill('সম্পাদিত লেখা: ঢাকায় নতুন মেট্রো লাইন চালু');
+  check('ফেসবুকের লেখায় কোনো লিংক নেই', !/https?:|🔗/.test(await pg.locator('#fCaption').inputValue()), await pg.locator('#fCaption').inputValue());
+  await pg.locator('#fCaption').fill('সম্পাদিত লেখা: ঢাকায় নতুন মেট্রো লাইন চালু\n\n🔗 https://x.com/y');
   await wait(800);
   writeFileSync(resolve(OUT, 'card.png'), Buffer.from((await pg.evaluate(() => document.getElementById('canvas').toDataURL('image/png'))).split(',')[1], 'base64'));
 
@@ -162,7 +184,7 @@ try {
 
   /* সেটিংস — সময় যোগ, সরানো, শুরুর মতো */
   await pg.locator('#openSettings').click();
-  check('সেটিংসে ১৫টা সময়, সংযোগ চালু', (await pg.locator('#slotList .slot').count()) === 15 && /চালু/.test(await pg.locator('#sAi').innerText()) && /যুক্ত/.test(await pg.locator('#sFb').innerText()));
+  check('সেটিংসে ১৫টা সময়, সংযোগ চালু', (await pg.locator('#slotList .slot').count()) === 15 && /চালু/.test(await pg.locator('#sAi').innerText()) && /২টা পেজে/.test(await pg.locator('#sFb').innerText()));
   await pg.locator('#newSlot').fill('23:45');
   await pg.locator('#addSlot').click();
   check('সময় যোগ হলো', !!(await until(async () => (await pg.locator('#slotList .slot').count()) === 16, 8000)) && /রাত ১১:৪৫/.test(await pg.locator('#slotList').innerText()));
@@ -183,13 +205,14 @@ try {
   await setSlots(`${now}, ${later}`);
   await fetch(`${A}/__scheduled?cron=*/5+*+*+*+*`);
   await until(async () => seen.fb.length > 0, 10000);
-  check('সময় হলে ফেসবুকে পোস্ট গেল', seen.fb.length === 1, JSON.stringify(seen.fb.map(f => f.url)));
-  check('পোস্টে কার্ডের JPG, টোকেন আর সম্পাদিত লেখা', seen.fb[0]?.jpeg && seen.fb[0]?.token && seen.fb[0]?.caption === 'সম্পাদিত লেখা: ঢাকায় নতুন মেট্রো লাইন চালু', JSON.stringify(seen.fb[0] || {}));
-  check('পেজের ঠিকানায় পোস্ট', seen.fb[0]?.url === '/graph/v23.0/PAGE1/photos');
+  await until(async () => seen.fb.length >= 2, 10000);
+  check('সময় হলে দুই পেজেই পোস্ট গেল (নিজের নিজের টোকেনে)', seen.fb.length === 2 && seen.fb.some(f => f.page === 'PAGE1' && f.tok === 'tok1') && seen.fb.some(f => f.page === 'PAGE2' && f.tok === 'tok2'), JSON.stringify(seen.fb.map(f => [f.page, f.tok])));
+  check('বাছা হয়নি এমন পেজে যায়নি', !seen.fb.some(f => f.page === 'PAGE3'));
+  check('পোস্টে কার্ডের JPG আর সম্পাদিত লেখা — লিংক সরে গেছে', seen.fb.every(f => f.jpeg && f.caption === 'সম্পাদিত লেখা: ঢাকায় নতুন মেট্রো লাইন চালু'), JSON.stringify(seen.fb.map(f => f.caption)));
   await fetch(`${A}/__scheduled?cron=*/5+*+*+*+*`);
   await wait(1500);
-  check('একই সময়ে দ্বিতীয়বার পোস্ট হয় না', seen.fb.length === 1);
-  check('পোস্ট হয়েছে বলে লেখা, ফেসবুকের আইডিসহ', (await drafts()).some(d => d.status === 'posted' && d.fb_post_id === 'PAGE1_777'));
+  check('একই সময়ে দ্বিতীয়বার পোস্ট হয় না', seen.fb.length === 2);
+  check('পোস্ট হয়েছে বলে লেখা, দুই পেজের পোস্টসহ', (await drafts()).some(d => d.status === 'posted' && Object.keys(JSON.parse(d.fb_posts || '{}')).length === 2));
   await pg.reload();
   await until(async () => await pg.locator('#home').isVisible(), 10000);
   check('"পোস্ট হয়ে গেছে"-তে দেখায়', (await pg.locator('#cDone').innerText()) === '১');
@@ -206,8 +229,13 @@ try {
   await until(async () => await pg.locator('#editor').isVisible(), 10000);
   await wait(1500);
   check('কার্ডের পাতায় "এখনই পোস্ট" বোতাম', await pg.locator('#approveNow').isVisible());
+  failPage2Once = true;
   await pg.locator('#approveNow').click();
-  check('অনুমোদন দিয়ে সাথে সাথে পোস্ট হলো', !!(await until(async () => seen.fb.length === 2, 15000)) && !!(await until(async () => (await drafts()).find(d => d.id === id2)?.status === 'posted', 10000)));
+  const half = await until(async () => { const d = (await drafts()).find(x => x.id === id2); return d?.status === 'approved' && d.error ? d : null; }, 15000);
+  check('একটা পেজে ব্যর্থ — কার্ড লাইনে থাকে, কারণসহ', !!half && /Amar Bangladesh News/.test(half.error) && seen.fb.length === 3, `${half?.status} ${half?.error} ${seen.fb.length}`);
+  await until(async () => (await pg.locator(`#queue [data-act="post"][data-id="${id2}"]`).count()) === 1, 10000);
+  await pg.locator(`#queue [data-act="post"][data-id="${id2}"]`).click();
+  check('আবার চেষ্টায় শুধু বাকি পেজে গেল — আগেরটায় দুবার নয়', !!(await until(async () => (await drafts()).find(d => d.id === id2)?.status === 'posted', 15000)) && seen.fb.length === 4 && seen.fb.slice(2).map(f => f.page).sort().join() === 'PAGE1,PAGE2', JSON.stringify(seen.fb.slice(2).map(f => f.page)));
   const id5 = (await drafts()).find(d => d.url.endsWith('/news/5')).id;
   await pg.locator(`#todo [data-open="${id5}"]`).click();
   await until(async () => await pg.locator('#editor').isVisible(), 10000);
@@ -215,10 +243,10 @@ try {
   await pg.locator('#approve').click();
   await until(async () => (await pg.locator(`#queue [data-act="post"][data-id="${id5}"]`).count()) === 1, 15000);
   await pg.locator(`#queue [data-act="post"][data-id="${id5}"]`).click();
-  check('ধাপ ৩ থেকে "এখনই পোস্ট"', !!(await until(async () => seen.fb.length === 3, 15000)) && !!(await until(async () => (await drafts()).find(d => d.id === id5)?.status === 'posted', 10000)));
+  check('ধাপ ৩ থেকে "এখনই পোস্ট" — দুই পেজে', !!(await until(async () => seen.fb.length === 6, 15000)) && !!(await until(async () => (await drafts()).find(d => d.id === id5)?.status === 'posted', 10000)));
   await fetch(`${A}/__scheduled?cron=*/5+*+*+*+*`);
   await wait(1500);
-  check('এখনই পোস্টের পরে cron আবার পোস্ট করে না', seen.fb.length === 3);
+  check('এখনই পোস্টের পরে cron আবার পোস্ট করে না', seen.fb.length === 6);
   check('পোস্ট না হওয়া কার্ড ছাড়া কিছু লাইনে নেই', !(await drafts()).some(d => ['approved', 'posting'].includes(d.status)));
 
   /* ফোনের মাপে — পাশে সরে না; ছবি রাখা হয় চোখে দেখার জন্য */

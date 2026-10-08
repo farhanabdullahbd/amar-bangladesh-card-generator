@@ -8,7 +8,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DEFAULT_SLOTS } from './util.js';
 
-const COLS = 'id, url, status, headline, body, category, source, date_label, caption, image_url, error, attempts, created_at, approved_at, posted_at, fb_post_id';
+const COLS = 'id, url, status, headline, body, category, source, date_label, caption, image_url, error, attempts, created_at, approved_at, posted_at, fb_post_id, fb_posts';
 const MAX_CARD = 1_900_000;                 // SQLite-এর এক ঘরে ২ MB পর্যন্ত
 const STUCK_MS = 150 * 1000;                // "লিখছে" অবস্থায় আড়াই মিনিটের বেশি থাকলে কাজটা মাঝপথে থেমেছে ধরা হয়
 const MAX_CLAIMS = 2;                       // দুবার থামলে আর নয় — কারণসহ "সমস্যা"-তে
@@ -31,6 +31,8 @@ export class NewsStore extends DurableObject {
     /* v2 (৮ অক্টোবর): কতবার লেখা শুরু হয়েছে — মাঝপথে থেমে বারবার আটকে থাকা ঠেকাতে */
     const cols = this.sql.exec('PRAGMA table_info(drafts)').toArray().map(c => c.name);
     if (!cols.includes('claims')) this.sql.exec('ALTER TABLE drafts ADD COLUMN claims INTEGER NOT NULL DEFAULT 0');
+    /* v3: কোন পেজে কোন পোস্ট — {পেজের আইডি: {post, name}}; একটা পেজে হয়ে আরেকটায় আটকালে আবার চেষ্টায় শুধু বাকিটায় */
+    if (!cols.includes('fb_posts')) this.sql.exec('ALTER TABLE drafts ADD COLUMN fb_posts TEXT');
   }
 
   _get(id) { return this.sql.exec(`SELECT ${COLS} FROM drafts WHERE id = ?`, id).toArray()[0] || null; }
@@ -135,6 +137,11 @@ export class NewsStore extends DurableObject {
     return { slots: this._kv('slots', DEFAULT_SLOTS), lastSlot: this._kv('lastSlot', null) };
   }
   setSlots(slots) { this._setKv('slots', slots); return this.settings(); }
+
+  /* ── কোন ফেসবুক পেজে পোস্ট হবে — [{id, name}] ── */
+  fbPages() { return this._kv('fbPages', []); }
+  setFbPages(list) { this._setKv('fbPages', list); return list; }
+  setPosts(id, map) { this.sql.exec('UPDATE drafts SET fb_posts = ? WHERE id = ?', JSON.stringify(map), id); }
 
   /* ── পোস্ট — সময়মতো (cron) বা মালিকের "এখনই পোস্ট"। আগে 'posting' করে নেওয়া হয়, তাই দুজন একসাথে একই কার্ড
      নিলেও একজনই পায় — একই কার্ড দুবার পোস্ট হয় না। id না দিলে লাইনের প্রথমটা ── */

@@ -1,29 +1,37 @@
-/* ─── ফেসবুক পেজে ছবিসহ পোস্ট (Graph API) ───
-   লাগে পেজের আইডি (FB_PAGE_ID) আর পেজের স্থায়ী টোকেন (FB_PAGE_TOKEN) — দুটোই Cloudflare-এর গোপন সেটিংসে।
+/* ─── ফেসবুক পেজে ছবিসহ পোস্ট (Graph API) — একসাথে কয়েকটা পেজে ───
+   গোপন সেটিংসে একটাই জিনিস: মালিকের স্থায়ী লগইন-টোকেন (FB_USER_TOKEN)। সেটা দিয়ে মালিক যে পেজগুলো চালান তার
+   তালিকা আর প্রতিটা পেজের নিজের টোকেন ফেসবুক থেকে আনা হয়। কোন পেজে পোস্ট হবে, সেটা মালিক সাইটের সেটিংসে বাছেন
+   (৮ অক্টোবর ২০২৬: প্রথমে এক পেজের ব্যবস্থা ছিল, ভুল পেজে পোস্ট যাওয়ার পর মালিক দুই পেজে একসাথে চাইলেন)।
    ব্যক্তিগত প্রোফাইলে পোস্ট করা যায় না, শুধু পেজে। */
 
-/* বসানোর সময় আগে-পরে ফাঁকা জায়গা থেকে গেলেও চলে */
-const conf = env => ({ id: String(env.FB_PAGE_ID || '').trim(), token: String(env.FB_PAGE_TOKEN || '').trim() });
-export const fbReady = env => { const c = conf(env); return !!(c.id && c.token); };
-/* কোন ঘরটা নেই — সেটিংসে দেখানোর জন্য */
-export const fbMissing = env => { const c = conf(env); return [!c.id && 'FB_PAGE_ID', !c.token && 'FB_PAGE_TOKEN'].filter(Boolean); };
+const base = env => `${env.FB_GRAPH_BASE || 'https://graph.facebook.com'}/${env.FB_GRAPH_VERSION || 'v23.0'}`;
+const userToken = env => String(env.FB_USER_TOKEN || '').trim();
+export const fbTokenSet = env => !!userToken(env);
 
-export async function postPhoto(env, jpeg, caption) {
-  const base = env.FB_GRAPH_BASE || 'https://graph.facebook.com';
-  const ver = env.FB_GRAPH_VERSION || 'v23.0';
+function fbError(e = {}, status) {
+  if (e.code === 190) return new Error('ফেসবুকের টোকেন বাতিল বা মেয়াদ শেষ — নতুন টোকেন বসাতে হবে');
+  if (e.code === 200 || e.code === 10) return new Error('এই পেজে পোস্ট করার অনুমতি নেই — টোকেনের অনুমতি দেখুন');
+  return new Error(`ফেসবুক: ${e.message || status}`);
+}
+
+/* মালিক যে পেজগুলো চালান — প্রতিটার নাম, আইডি আর পোস্ট করার টোকেন */
+export async function listPages(env) {
+  if (!fbTokenSet(env)) throw new Error('ফেসবুকের টোকেন বসানো নেই (Cloudflare-এর Secret-এ FB_USER_TOKEN)');
+  const url = `${base(env)}/me/accounts?fields=id,name,category,access_token&limit=100&access_token=${encodeURIComponent(userToken(env))}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw fbError(data.error, res.status);
+  return (data.data || []).map(p => ({ id: String(p.id), name: p.name || '', category: p.category || '', token: p.access_token }));
+}
+
+export async function postPhoto(env, page, jpeg, caption) {
   const form = new FormData();
   form.append('source', new Blob([jpeg], { type: 'image/jpeg' }), 'card.jpg');
   form.append('caption', caption || '');
   form.append('published', 'true');
-  const c = conf(env);
-  form.append('access_token', c.token);
-  const res = await fetch(`${base}/${ver}/${c.id}/photos`, { method: 'POST', body: form });
+  form.append('access_token', page.token);
+  const res = await fetch(`${base(env)}/${page.id}/photos`, { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) {
-    const e = data.error || {};
-    if (e.code === 190) throw new Error('ফেসবুকের টোকেন বাতিল বা মেয়াদ শেষ — নতুন টোকেন বসাতে হবে');
-    if (e.code === 200 || e.code === 10) throw new Error('ফেসবুক পেজে পোস্ট করার অনুমতি নেই — টোকেনের অনুমতি দেখুন');
-    throw new Error(`ফেসবুক: ${e.message || res.status}`);
-  }
+  if (!res.ok || data.error) throw fbError(data.error, res.status);
   return data.post_id || data.id || '';
 }

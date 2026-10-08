@@ -4,7 +4,7 @@
   // গোপন সেটিংস (Cloudflare → Worker → Settings → Variables and Secrets, ধরন "Secret"):
   //   ADMIN_PASSWORD   — সাইটে ঢোকার পাসওয়ার্ড
   //   DEEPSEEK_API_KEY — DeepSeek-এর key (কখনো কোডে বা GitHub-এ নয়)
-  //   FB_PAGE_TOKEN — ফেসবুক পেজের স্থায়ী টোকেন (পেজের আইডি নিচে vars-এ)
+  //   FB_USER_TOKEN — মালিকের স্থায়ী ফেসবুক লগইন-টোকেন; কোন পেজে পোস্ট হবে তা সাইটের সেটিংসে বাছা হয়
   "name": "amar-bangladesh-card-generator",
   "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
@@ -15,7 +15,7 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NewsStore"] }],
   // প্রতি ৫ মিনিটে: বাকি লিংক লেখা, আর পোস্টের সময় হলে অনুমোদিত কার্ড পোস্ট
   "triggers": { "crons": ["*/5 * * * *"] },
-  "vars": { "DEEPSEEK_MODEL": "deepseek-flash", "FB_PAGE_ID": "" },
+  "vars": { "DEEPSEEK_MODEL": "deepseek-flash" },
   // ড্যাশবোর্ডে হাতে বসানো সাধারণ (Text) ঘর ডিপ্লয়ের সময় মুছবে না — আগে মুছে যেত (৮ অক্টোবর ২০২৬)
   "keep_vars": true,
   "observability": { "enabled": true }
