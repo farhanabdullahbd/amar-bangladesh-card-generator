@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#A8003D" />
+  <title>আমার বাংলাদেশ — নিউজ কার্ড</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tiro+Bangla&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- লগইন -->
+  <section id="login" class="login" hidden>
+    <form id="loginForm" class="box">
+      <h1>আমার বাংলাদেশ</h1>
+      <p class="muted">নিউজ কার্ড — শুধু মালিকের জন্য</p>
+      <label>পাসওয়ার্ড<input type="password" id="password" autocomplete="current-password" required /></label>
+      <button class="btn primary" type="submit">ঢুকুন</button>
+      <p class="msg" id="loginMsg"></p>
+    </form>
+  </section>
+
+  <!-- মূল পাতা -->
+  <main id="app" hidden>
+    <header class="top">
+      <div>
+        <h1>আমার বাংলাদেশ</h1>
+        <div class="chips" id="health"></div>
+      </div>
+      <button class="btn ghost small" id="logout">বের হোন</button>
+    </header>
+
+    <section class="box">
+      <label for="links">নিউজের লিংক দিন <span class="muted">(একাধিক হলে প্রতি লাইনে একটা)</span></label>
+      <textarea id="links" rows="3" placeholder="https://..."></textarea>
+      <div class="row">
+        <button class="btn primary" id="addLinks">যোগ করুন</button>
+        <span class="msg" id="addMsg"></span>
+      </div>
+    </section>
+
+    <nav class="tabs" id="tabs">
+      <button data-tab="ready" class="on">অনুমোদন বাকি <b></b></button>
+      <button data-tab="approved">পোস্টের লাইনে <b></b></button>
+      <button data-tab="working">লেখা হচ্ছে <b></b></button>
+      <button data-tab="posted">পোস্ট হয়েছে <b></b></button>
+      <button data-tab="failed">সমস্যা <b></b></button>
+      <button data-tab="schedule">সময়সূচি</button>
+    </nav>
+
+    <section id="list" class="list"></section>
+
+    <section id="schedule" class="box" hidden>
+      <label for="slots">পোস্টের সময় <span class="muted">(বাংলাদেশের সময়, ২৪ ঘণ্টার হিসাবে — যেমন 08:00, 14:30)</span></label>
+      <textarea id="slots" rows="4"></textarea>
+      <div class="row">
+        <button class="btn primary" id="saveSlots">সংরক্ষণ</button>
+        <span class="msg" id="slotsMsg"></span>
+      </div>
+      <p class="muted">প্রতিটা সময়ে লাইনের প্রথম অনুমোদিত কার্ডটা পোস্ট হয়। লাইনে কিছু না থাকলে সেই সময়টা বাদ যায়; সময়ের পরে আধা ঘণ্টার মধ্যে অনুমোদন দিলে তখনই যায়।</p>
+    </section>
+  </main>
+
+  <!-- কার্ড দেখা ও অনুমোদন -->
+  <section id="editor" class="editor" hidden>
+    <div class="editor-in">
+      <div class="editor-head">
+        <b>কার্ড দেখুন, দরকার হলে ঠিক করুন</b>
+        <button class="btn ghost small" id="closeEditor">বন্ধ</button>
+      </div>
+      <div class="editor-grid">
+        <div class="preview"><canvas id="canvas" width="1279" height="1600"></canvas></div>
+        <div class="fields">
+          <label>হেডলাইন<textarea id="fHeadline" rows="3"></textarea></label>
+          <label>বিস্তারিত<textarea id="fBody" rows="5"></textarea></label>
+          <div class="two">
+            <label>ক্যাটাগরি<input id="fCategory" /></label>
+            <label>তারিখ<input id="fDate" /></label>
+          </div>
+          <label>সূত্র<input id="fSource" /></label>
+          <div class="photo-row">
+            <span>ছবি:</span>
+            <button class="btn ghost small" id="useNewsPhoto">নিউজের ছবি</button>
+            <button class="btn ghost small" id="pickPhoto">নিজের ছবি দিন</button>
+            <input type="file" id="photoFile" accept="image/*" hidden />
+          </div>
+          <label>ফেসবুকের লেখা<textarea id="fCaption" rows="5"></textarea></label>
+          <p class="muted small"><a id="srcLink" target="_blank" rel="noopener">মূল নিউজ খুলুন ↗</a></p>
+          <div class="actions">
+            <button class="btn primary" id="approve">✅ অনুমোদন — পোস্টের লাইনে দিন</button>
+            <button class="btn ghost" id="rewrite">🔄 AI দিয়ে আবার লেখান</button>
+            <button class="btn ghost" id="download">⬇️ JPG ডাউনলোড</button>
+            <button class="btn danger" id="reject">🗑 বাদ দিন</button>
+          </div>
+          <p class="msg" id="editMsg"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="/logos.js"></script>
+  <script src="/card.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

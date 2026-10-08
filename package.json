@@ -1,0 +1,21 @@
+{
+  "name": "amar-bangladesh-card-generator",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "আমার বাংলাদেশ — নিউজ লিংক থেকে ফটো কার্ড, অনুমোদনের পর সময়মতো ফেসবুক পেজে পোস্ট",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/unit.test.js",
+    "test:e2e": "node test/e2e.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/farhanabdullahbd/amar-bangladesh-card-generator.git"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1",
+    "wrangler": "^4.148.0"
+  }
+}

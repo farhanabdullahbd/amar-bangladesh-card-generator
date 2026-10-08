@@ -1,0 +1,76 @@
+/* আমার বাংলাদেশ — নিউজ কার্ড অটোমেশন */
+:root {
+  --bg: #161616; --panel: #212121; --line: #333; --text: #f2f2f2; --muted: #a3a3a3;
+  --red: #A8003D; --red2: #CA004A; --ok: #3fb96b; --warn: #e0a030; --bad: #ff6b6b;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Hind Siliguri', 'Tiro Bangla', sans-serif; font-size: 16px; }
+[hidden] { display: none !important; }
+h1 { margin: 0; font-size: 22px; font-family: 'Tiro Bangla', serif; }
+a { color: #ff8fb5; }
+.muted { color: var(--muted); font-weight: 400; }
+.small { font-size: 13px; }
+.msg { font-size: 14px; color: var(--muted); }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--ok); }
+
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { font-size: 12px; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip.ok { color: var(--ok); border-color: rgba(63,185,107,.4); }
+.chip.bad { color: var(--warn); border-color: rgba(224,160,48,.4); }
+
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+label { display: block; font-size: 14px; color: #ddd; margin-bottom: 10px; }
+input, textarea {
+  width: 100%; margin-top: 6px; background: #2a2a2a; color: var(--text); border: 1px solid #3a3a3a; border-radius: 10px;
+  padding: 10px 12px; font: inherit; font-size: 16px; outline: none;
+}
+textarea { resize: vertical; line-height: 1.5; }
+input:focus, textarea:focus { border-color: var(--red2); }
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.btn { border: 1px solid transparent; border-radius: 10px; padding: 10px 16px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--text); background: #2c2c2c; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--red); }
+.btn.primary:hover:not(:disabled) { background: var(--red2); }
+.btn.ghost { background: transparent; border-color: #444; }
+.btn.danger { background: transparent; border-color: rgba(255,107,107,.5); color: var(--bad); }
+.btn.small { padding: 6px 11px; font-size: 13px; }
+
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; scrollbar-width: none; }
+.tabs button { flex: 0 0 auto; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 99px; padding: 7px 13px; font: inherit; font-size: 14px; cursor: pointer; }
+.tabs button.on { background: var(--red); border-color: var(--red); color: #fff; }
+.tabs b { font-weight: 700; margin-left: 2px; }
+
+.list { display: flex; flex-direction: column; gap: 10px; }
+.item { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; align-items: flex-start; }
+.item img, .item .noimg { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: #2a2a2a; }
+.item .noimg { display: flex; align-items: center; justify-content: center; color: #666; font-size: 12px; }
+.item .t { flex: 1; min-width: 0; }
+.item .h { font-weight: 600; line-height: 1.4; word-break: break-word; }
+.item .m { font-size: 13px; color: var(--muted); margin-top: 3px; word-break: break-all; }
+.item .e { font-size: 13px; color: var(--bad); margin-top: 3px; }
+.item .w { font-size: 13px; color: var(--warn); margin-top: 3px; }
+.item .a { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.empty { color: var(--muted); text-align: center; padding: 30px 10px; }
+
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.login .box { width: 100%; max-width: 360px; }
+.login h1 { margin-bottom: 4px; }
+.login .btn { width: 100%; margin-top: 6px; }
+
+.editor { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 10; overflow-y: auto; }
+.editor-in { max-width: 1100px; margin: 0 auto; padding: 12px; }
+.editor-head { display: flex; justify-content: space-between; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; position: sticky; top: 8px; z-index: 2; }
+.editor-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.preview canvas { width: 100%; height: auto; border-radius: 10px; display: block; background: #222; }
+.fields { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.photo-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px; }
+.actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+@media (max-width: 760px) {
+  .editor-grid { grid-template-columns: 1fr; }
+  .preview { max-width: 420px; margin: 0 auto; width: 100%; }
+}

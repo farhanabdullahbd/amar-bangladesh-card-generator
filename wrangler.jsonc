@@ -1,0 +1,20 @@
+{
+  // আমার বাংলাদেশ — নিউজ কার্ড অটোমেশন (Cloudflare Workers)
+  // Cloudflare-এ রিপো যুক্ত করার সময় Worker-এর নাম এটাই দিতে হবে। বিল্ড লাগে না; ডিপ্লয় `npx wrangler deploy`।
+  // গোপন সেটিংস (Cloudflare → Worker → Settings → Variables and Secrets, ধরন "Secret"):
+  //   ADMIN_PASSWORD   — সাইটে ঢোকার পাসওয়ার্ড
+  //   DEEPSEEK_API_KEY — DeepSeek-এর key (কখনো কোডে বা GitHub-এ নয়)
+  //   FB_PAGE_ID, FB_PAGE_TOKEN — ফেসবুক পেজ (পোস্ট করার জন্য)
+  "name": "amar-bangladesh-card-generator",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+  // ড্যাশবোর্ডের পাতা (public/) — /api/* ছাড়া সব এখান থেকে
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  // সব তথ্য এক জায়গায় (Durable Object, SQLite) — ফ্রি প্ল্যানে চলে, আলাদা ডেটাবেস বানাতে হয় না
+  "durable_objects": { "bindings": [{ "name": "STORE", "class_name": "NewsStore" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NewsStore"] }],
+  // প্রতি ৫ মিনিটে: বাকি লিংক লেখা, আর পোস্টের সময় হলে অনুমোদিত কার্ড পোস্ট
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": { "DEEPSEEK_MODEL": "deepseek-chat" },
+  "observability": { "enabled": true }
+}
